@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Chez nous — Aujourd'hui</title>
-<link rel="stylesheet" href="assets/style.css?v=2">
+<link rel="stylesheet" href="assets/style.css?v=3">
 </head>
 <body>
 
@@ -72,8 +72,8 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="assets/config.js?v=2"></script>
-<script src="assets/app.js?v=2"></script>
+<script src="assets/config.js?v=3"></script>
+<script src="assets/app.js?v=3"></script>
 <script>
 document.getElementById('date-jour').textContent = formatDateLongue(dateAujourdhui());
 
@@ -218,7 +218,7 @@ async function chargerSemaine() {
     }).join('') + evtsTousJour.map(e => `<div class="item-ligne">👨‍👩‍👧‍👦 ${e.titre}</div>`).join('');
 
     return `
-      <div class="jour-carte ${estVacances ? 'vacances' : ''}">
+      <div class="jour-carte ${estVacances ? 'vacances' : ''} ${ds === dateAujourdhui() ? 'aujourdhui' : ''}">
         <h4>${d.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' })}</h4>
         ${contenu || '<div class="rien">Rien de prévu</div>'}
       </div>
@@ -271,15 +271,19 @@ async function chargerMois() {
     const ds = formatDateLocale(d);
     const evtsJour = (evenementsRes.data || []).filter(e => evenementCouvre(e, ds));
     const horsMois = d.getMonth() !== mois;
+    const estAujourdhui = ds === dateAujourdhui();
     const estVacances = evtsJour.some(e => !e.membre_id && e.mode === 'remplace');
-    const puces = evtsJour.slice(0, 5).map(e => {
+    const MAX_AFFICHES = 3;
+    const chips = evtsJour.slice(0, MAX_AFFICHES).map(e => {
       const m = membresParId[e.membre_id];
-      return `<span class="puce" style="background:${m ? m.couleur : 'var(--tous)'}" title="${e.titre}"></span>`;
+      return `<span class="mois-evt" style="background:${m ? m.couleur : 'var(--tous)'}" title="${e.titre}">${e.titre}</span>`;
     }).join('');
+    const reste = evtsJour.length - MAX_AFFICHES;
     return `
-      <div class="mois-cellule ${horsMois ? 'hors-mois' : ''} ${estVacances ? 'vacances' : ''}">
+      <div class="mois-cellule ${horsMois ? 'hors-mois' : ''} ${estVacances ? 'vacances' : ''} ${estAujourdhui ? 'aujourdhui' : ''}">
         <div class="mois-jour-num">${d.getDate()}</div>
-        <div class="mois-puces">${puces}</div>
+        ${chips}
+        ${reste > 0 ? `<div class="mois-evt-plus">+${reste}</div>` : ''}
       </div>
     `;
   }).join('');
