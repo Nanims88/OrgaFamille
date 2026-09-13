@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Chez nous — Aujourd'hui</title>
-<link rel="stylesheet" href="assets/style.css?v=5">
+<link rel="stylesheet" href="assets/style.css?v=6">
 </head>
 <body>
 
@@ -36,22 +36,22 @@
   <main>
 
     <div class="vue-tabs">
-      <button id="tab-jour" class="actif" onclick="changerVue('jour')">📆 Jour</button>
-      <button id="tab-semaine" onclick="changerVue('semaine')">🗓️ Semaine</button>
+      <button id="tab-jour" onclick="changerVue('jour')">📆 Jour</button>
+      <button id="tab-semaine" class="actif" onclick="changerVue('semaine')">🗓️ Semaine</button>
       <button id="tab-mois" onclick="changerVue('mois')">📅 Mois</button>
     </div>
 
     <div id="encart-sans-date" style="display:none;"></div>
 
     <!-- ---------- Vue Jour ---------- -->
-    <div id="vue-jour">
+    <div id="vue-jour" style="display:none;">
       <div id="tous-du-jour"></div>
       <h2 class="section-titre">Pour chacun</h2>
       <div class="lanes" id="lanes"></div>
     </div>
 
     <!-- ---------- Vue Semaine ---------- -->
-    <div id="vue-semaine" style="display:none;">
+    <div id="vue-semaine">
       <div class="semaine-nav">
         <button class="btn" onclick="deplacerSemaine(-1)">◀</button>
         <button class="btn" onclick="allerSemaineActuelle()">Cette semaine</button>
@@ -74,8 +74,8 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="assets/config.js?v=5"></script>
-<script src="assets/app.js?v=5"></script>
+<script src="assets/config.js?v=6"></script>
+<script src="assets/app.js?v=6"></script>
 <script>
 document.getElementById('date-jour').textContent = formatDateLongue(dateAujourdhui());
 
@@ -84,6 +84,7 @@ function changerVue(v) {
     document.getElementById('vue-' + x).style.display = x === v ? 'block' : 'none';
     document.getElementById('tab-' + x).classList.toggle('actif', x === v);
   });
+  if (v === 'jour') chargerLanes();
   if (v === 'semaine') chargerSemaine();
   if (v === 'mois') chargerMois();
   if (v === 'jour') {
@@ -344,7 +345,8 @@ async function chargerMois() {
 }
 
 function initPage() {
-  chargerLanes();
+  chargerSemaine();
+  chargerEncartSansDate();
 }
 </script>
 </body>
