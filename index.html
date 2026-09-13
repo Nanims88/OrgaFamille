@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Chez nous — Aujourd'hui</title>
-<link rel="stylesheet" href="assets/style.css">
+<link rel="stylesheet" href="assets/style.css?v=2">
 </head>
 <body>
 
@@ -72,8 +72,8 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="assets/config.js"></script>
-<script src="assets/app.js"></script>
+<script src="assets/config.js?v=2"></script>
+<script src="assets/app.js?v=2"></script>
 <script>
 document.getElementById('date-jour').textContent = formatDateLongue(dateAujourdhui());
 
@@ -136,7 +136,7 @@ async function chargerLanes() {
     const evtsRemplace = [...evtsM, ...evtsTous].filter(e => e.mode === 'remplace');
     const evtsAjout = evtsM.filter(e => e.mode === 'ajout');
     const planningM = evtsRemplace.length ? [] : (planning.data || []).filter(p => p.membre_id === m.id);
-    const tachesM = (taches.data || []).filter(t => t.membre_id === m.id);
+    const tachesM = (taches.data || []).filter(t => t.membre_id === m.id && (t.frequence !== 'hebdo' || (t.jours_semaine || []).includes(jourSemaine)));
     const rienDuTout = tachesM.length === 0 && planningM.length === 0 && evtsAjout.length === 0 && evtsRemplace.length === 0;
 
     return `
