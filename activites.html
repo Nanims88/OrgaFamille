@@ -100,6 +100,7 @@ async function chargerActivites() {
           ? `<button class="btn" onclick="marquerFaite('${a.id}')">✅ On l'a fait</button>`
           : `<button class="btn" style="background:var(--ink-soft)" onclick="remettreIdee('${a.id}')">↩️ Remettre en idée</button>`}
         <button class="btn" style="background:var(--paper);color:var(--ink);box-shadow:var(--shadow-1);" onclick="modifierActivite('${a.id}')">✏️ Modifier</button>
+        <button class="btn" style="background:var(--ink-soft)" onclick="supprimerActivite('${a.id}')">Supprimer</button>
       </div>
     </div>
   `).join('') || `<div class="vide">${filtreActuel === 'idee' ? 'Aucune idée pour l\'instant, ajoute-en une !' : 'Rien de fait encore.'}</div>`;
@@ -132,6 +133,11 @@ async function marquerFaite(id) {
 }
 async function remettreIdee(id) {
   await sb.from('idees_activites').update({ statut: 'idee' }).eq('id', id);
+  chargerActivites();
+}
+async function supprimerActivite(id) {
+  if (!confirm('Supprimer cette idée ?')) return;
+  await sb.from('idees_activites').delete().eq('id', id);
   chargerActivites();
 }
 
