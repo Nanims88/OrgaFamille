@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chez nous — Activités</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+
+<div id="gate">
+  <div class="carte">
+    <h2 class="titre">🏡 Chez nous</h2>
+    <p>Mot de passe famille</p>
+    <form id="gate-form">
+      <input id="gate-input" type="password" placeholder="•••••••" autofocus>
+      <button type="submit">Entrer</button>
+    </form>
+    <p class="erreur" id="gate-erreur"></p>
+  </div>
+</div>
+
+<div id="app">
+  <header class="entete">
+    <h1 class="titre">🎒 Idées de sorties</h1>
+    <div class="date-du-jour" id="date-jour"></div>
+  </header>
+  <nav class="modules">
+    <a href="index.html">🏠 Aujourd'hui</a>
+    <a href="menage.html">🧹 Ménage</a>
+    <a href="agenda.html">📅 Agenda</a>
+    <a href="activites.html">🎒 Activités</a>
+    <a href="checklists.html">✅ Checklists</a>
+    <a href="parametres.html">⚙️ Réglages</a>
+  </nav>
+  <main>
+
+    <div class="carte" style="display:flex;gap:8px;flex-wrap:wrap;">
+      <button class="btn" id="filtre-idee" onclick="changerFiltre('idee')">💡 À faire</button>
+      <button class="btn" id="filtre-faite" onclick="changerFiltre('faite')" style="background:var(--ink-soft)">✅ Déjà faites</button>
+    </div>
+
+    <div class="grille-cartes" id="liste-activites" style="margin-top:16px;"></div>
+
+    <h2 class="section-titre">Ajouter une idée</h2>
+    <div class="carte">
+      <form class="mini" id="form-activite">
+        <input type="text" id="a-titre" placeholder="Titre (ex: Balade en forêt)" required>
+        <input type="text" id="a-categorie" placeholder="Catégorie (nature, culture...)">
+        <select id="a-saison">
+          <option value="">Toute saison</option>
+          <option value="printemps">Printemps</option>
+          <option value="été">Été</option>
+          <option value="automne">Automne</option>
+          <option value="hiver">Hiver</option>
+        </select>
+        <input type="text" id="a-lien" placeholder="Lien (optionnel)">
+        <button class="btn" type="submit">Ajouter</button>
+      </form>
+    </div>
+
+  </main>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="assets/config.js"></script>
+<script src="assets/app.js"></script>
+<script>
+document.getElementById('date-jour').textContent = formatDateLongue(dateAujourdhui());
+let filtreActuel = 'idee';
+
+function changerFiltre(f) {
+  filtreActuel = f;
+  document.getElementById('filtre-idee').style.background = f === 'idee' ? 'var(--ink)' : 'var(--ink-soft)';
+  document.getElementById('filtre-faite').style.background = f === 'faite' ? 'var(--ink)' : 'var(--ink-soft)';
+  chargerActivites();
+}
+
+async function chargerActivites() {
+  const { data } = await sb.from('idees_activites').select('*').eq('statut', filtreActuel).order('cree_le', { ascending: false });
+  document.getElementById('liste-activites').innerHTML = (data || []).map(a => `
+    <div class="carte">
+      <strong>${a.titre}</strong>
+      ${a.categorie ? `<br><span style="color:var(--ink-soft);font-size:0.85rem;">${a.categorie}${a.saison ? ' · ' + a.saison : ''}</span>` : ''}
+      ${a.description ? `<p style="font-size:0.9rem;margin:8px 0;">${a.description}</p>` : ''}
+      ${a.lien ? `<a href="${a.lien}" target="_blank" style="font-size:0.85rem;">🔗 Lien</a><br>` : ''}
+      <div style="margin-top:8px;display:flex;gap:6px;">
+        ${filtreActuel === 'idee'
+          ? `<button class="btn" onclick="marquerFaite('${a.id}')">✅ On l'a fait</button>`
+          : `<button class="btn" style="background:var(--ink-soft)" onclick="remettreIdee('${a.id}')">↩️ Remettre en idée</button>`}
+      </div>
+    </div>
+  `).join('') || `<div class="vide">${filtreActuel === 'idee' ? 'Aucune idée pour l\'instant, ajoute-en une !' : 'Rien de fait encore.'}</div>`;
+}
+
+async function marquerFaite(id) {
+  await sb.from('idees_activites').update({ statut: 'faite' }).eq('id', id);
+  chargerActivites();
+}
+async function remettreIdee(id) {
+  await sb.from('idees_activites').update({ statut: 'idee' }).eq('id', id);
+  chargerActivites();
+}
+
+document.getElementById('form-activite').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  await sb.from('idees_activites').insert({
+    titre: document.getElementById('a-titre').value,
+    categorie: document.getElementById('a-categorie').value || null,
+    saison: document.getElementById('a-saison').value || null,
+    lien: document.getElementById('a-lien').value || null
+  });
+  e.target.reset();
+  chargerActivites();
+});
+
+function initPage() { chargerActivites(); }
+</script>
+</body>
+</html>

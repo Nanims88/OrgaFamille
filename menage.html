@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chez nous — Ménage</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+
+<div id="gate">
+  <div class="carte">
+    <h2 class="titre">🏡 Chez nous</h2>
+    <p>Mot de passe famille</p>
+    <form id="gate-form">
+      <input id="gate-input" type="password" placeholder="•••••••" autofocus>
+      <button type="submit">Entrer</button>
+    </form>
+    <p class="erreur" id="gate-erreur"></p>
+  </div>
+</div>
+
+<div id="app">
+  <header class="entete">
+    <h1 class="titre">🧹 Ménage</h1>
+    <div class="date-du-jour" id="date-jour"></div>
+  </header>
+  <nav class="modules">
+    <a href="index.html">🏠 Aujourd'hui</a>
+    <a href="menage.html">🧹 Ménage</a>
+    <a href="agenda.html">📅 Agenda</a>
+    <a href="activites.html">🎒 Activités</a>
+    <a href="checklists.html">✅ Checklists</a>
+    <a href="parametres.html">⚙️ Réglages</a>
+  </nav>
+  <main>
+
+    <h2 class="section-titre">Toutes les tâches</h2>
+    <div class="grille-cartes" id="liste-taches"></div>
+
+    <h2 class="section-titre">Ajouter une tâche</h2>
+    <div class="carte">
+      <form class="mini" id="form-tache">
+        <input type="text" id="f-libelle" placeholder="Ex: Sortir les poubelles" required>
+        <select id="f-membre"></select>
+        <select id="f-frequence">
+          <option value="quotidien">Quotidien</option>
+          <option value="hebdo">Hebdomadaire</option>
+          <option value="mensuel">Mensuel</option>
+        </select>
+        <input type="text" id="f-icone" placeholder="Icône (ex: 🧺)" style="width:90px" value="🧹">
+        <button class="btn" type="submit">Ajouter</button>
+      </form>
+    </div>
+
+  </main>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="assets/config.js"></script>
+<script src="assets/app.js"></script>
+<script>
+document.getElementById('date-jour').textContent = formatDateLongue(dateAujourdhui());
+
+async function chargerTaches() {
+  const [membres, taches] = await Promise.all([
+    getMembres(),
+    sb.from('taches_menage').select('*').eq('actif', true).order('libelle')
+  ]);
+  const membresParId = Object.fromEntries(membres.map(m => [m.id, m]));
+
+  document.getElementById('f-membre').innerHTML = membres.map(m => `<option value="${m.id}">${m.icone} ${m.nom}</option>`).join('');
+
+  document.getElementById('liste-taches').innerHTML = (taches.data || []).map(t => {
+    const m = membresParId[t.membre_id];
+    return `
+      <div class="carte" style="border-top:5px solid ${m ? m.couleur : 'var(--border)'}">
+        <div style="display:flex;justify-content:space-between;align-items:start;">
+          <div>
+            <div class="icone-lg">${t.icone}</div>
+            <strong>${t.libelle}</strong><br>
+            <span style="color:var(--ink-soft);font-size:0.85rem;">${t.frequence}</span>
+          </div>
+          ${badgeMembre(m)}
+        </div>
+        <div style="margin-top:10px;">
+          <button class="btn" style="background:var(--ink-soft)" onclick="supprimerTache('${t.id}')">Supprimer</button>
+        </div>
+      </div>
+    `;
+  }).join('') || '<div class="vide">Aucune tâche pour l\'instant.</div>';
+}
+
+async function supprimerTache(id) {
+  if (!confirm('Supprimer cette tâche ?')) return;
+  await sb.from('taches_menage').update({ actif: false }).eq('id', id);
+  chargerTaches();
+}
+
+document.getElementById('form-tache').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  await sb.from('taches_menage').insert({
+    libelle: document.getElementById('f-libelle').value,
+    membre_id: document.getElementById('f-membre').value,
+    frequence: document.getElementById('f-frequence').value,
+    icone: document.getElementById('f-icone').value || '🧹'
+  });
+  e.target.reset();
+  document.getElementById('f-icone').value = '🧹';
+  chargerTaches();
+});
+
+function initPage() { chargerTaches(); }
+</script>
+</body>
+</html>

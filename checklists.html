@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chez nous — Checklists</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+
+<div id="gate">
+  <div class="carte">
+    <h2 class="titre">🏡 Chez nous</h2>
+    <p>Mot de passe famille</p>
+    <form id="gate-form">
+      <input id="gate-input" type="password" placeholder="•••••••" autofocus>
+      <button type="submit">Entrer</button>
+    </form>
+    <p class="erreur" id="gate-erreur"></p>
+  </div>
+</div>
+
+<div id="app">
+  <header class="entete">
+    <h1 class="titre">✅ Checklists</h1>
+    <div class="date-du-jour" id="date-jour"></div>
+  </header>
+  <nav class="modules">
+    <a href="index.html">🏠 Aujourd'hui</a>
+    <a href="menage.html">🧹 Ménage</a>
+    <a href="agenda.html">📅 Agenda</a>
+    <a href="activites.html">🎒 Activités</a>
+    <a href="checklists.html">✅ Checklists</a>
+    <a href="parametres.html">⚙️ Réglages</a>
+  </nav>
+  <main>
+
+    <h2 class="section-titre">En cours</h2>
+    <div class="grille-cartes" id="liste-instances"></div>
+
+    <div class="carte" style="margin-top:14px;">
+      <strong>Démarrer une checklist à partir d'un modèle</strong>
+      <form class="mini" id="form-instance">
+        <select id="i-modele"></select>
+        <input type="text" id="i-nom" placeholder="Nom (ex: Anniv Baptiste 8 ans)" required>
+        <input type="date" id="i-date">
+        <button class="btn" type="submit">Créer</button>
+      </form>
+    </div>
+
+    <h2 class="section-titre">Modèles</h2>
+    <div class="grille-cartes" id="liste-modeles"></div>
+
+    <div class="carte" style="margin-top:14px;">
+      <strong>Créer un nouveau modèle</strong>
+      <form class="mini" id="form-modele">
+        <input type="text" id="m-nom" placeholder="Nom du modèle (ex: Rentrée scolaire)" required>
+        <button class="btn" type="submit">Créer le modèle</button>
+      </form>
+    </div>
+
+  </main>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="assets/config.js"></script>
+<script src="assets/app.js"></script>
+<script>
+document.getElementById('date-jour').textContent = formatDateLongue(dateAujourdhui());
+
+async function chargerInstances() {
+  const { data: instances } = await sb.from('checklists_instances').select('*').order('cree_le', { ascending: false });
+  const { data: items } = await sb.from('checklists_instance_items').select('*').order('ordre');
+
+  document.getElementById('liste-instances').innerHTML = (instances || []).map(inst => {
+    const itemsInst = (items || []).filter(it => it.instance_id === inst.id);
+    const nbFait = itemsInst.filter(it => it.coche).length;
+    return `
+      <div class="carte">
+        <strong>${inst.nom}</strong>
+        ${inst.date_evenement ? `<br><span style="color:var(--ink-soft);font-size:0.85rem;">${new Date(inst.date_evenement).toLocaleDateString('fr-FR')}</span>` : ''}
+        <div style="color:var(--ink-soft);font-size:0.85rem;margin:4px 0;">${nbFait}/${itemsInst.length} fait${nbFait > 1 ? 's' : ''}</div>
+        ${itemsInst.map(it => `
+          <div class="item-ligne ${it.coche ? 'fait' : ''}">
+            <input type="checkbox" ${it.coche ? 'checked' : ''} onchange="toggleItemInstance('${it.id}', ${it.coche})">
+            ${it.libelle}
+          </div>
+        `).join('')}
+        <button class="btn" style="background:var(--ink-soft);margin-top:8px;" onclick="supprimerInstance('${inst.id}')">Supprimer</button>
+      </div>
+    `;
+  }).join('') || '<div class="vide">Aucune checklist en cours.</div>';
+}
+
+async function toggleItemInstance(id, coche) {
+  await sb.from('checklists_instance_items').update({ coche: !coche }).eq('id', id);
+  chargerInstances();
+}
+async function supprimerInstance(id) {
+  if (!confirm('Supprimer cette checklist ?')) return;
+  await sb.from('checklists_instances').delete().eq('id', id);
+  chargerInstances();
+}
+
+async function chargerModeles() {
+  const { data: modeles } = await sb.from('checklists_modeles').select('*');
+  const { data: items } = await sb.from('checklists_modele_items').select('*').order('ordre');
+
+  document.getElementById('i-modele').innerHTML = (modeles || []).map(m => `<option value="${m.id}">${m.nom}</option>`).join('');
+
+  document.getElementById('liste-modeles').innerHTML = (modeles || []).map(m => {
+    const itemsM = (items || []).filter(it => it.modele_id === m.id);
+    return `
+      <div class="carte">
+        <strong>${m.nom}</strong>
+        <ul style="padding-left:18px;font-size:0.9rem;">
+          ${itemsM.map(it => `<li>${it.libelle}</li>`).join('')}
+        </ul>
+        <form class="mini" onsubmit="return ajouterItemModele(event, '${m.id}')">
+          <input type="text" placeholder="Ajouter un point" style="flex:1;">
+          <button class="btn" type="submit">+</button>
+        </form>
+      </div>
+    `;
+  }).join('') || '<div class="vide">Aucun modèle.</div>';
+}
+
+async function ajouterItemModele(e, modeleId) {
+  e.preventDefault();
+  const input = e.target.querySelector('input');
+  if (!input.value) return false;
+  await sb.from('checklists_modele_items').insert({ modele_id: modeleId, libelle: input.value, ordre: 99 });
+  chargerModeles();
+  return false;
+}
+
+document.getElementById('form-modele').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  await sb.from('checklists_modeles').insert({ nom: document.getElementById('m-nom').value });
+  e.target.reset();
+  chargerModeles();
+});
+
+document.getElementById('form-instance').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const modeleId = document.getElementById('i-modele').value;
+  const { data: instance } = await sb.from('checklists_instances').insert({
+    modele_id: modeleId,
+    nom: document.getElementById('i-nom').value,
+    date_evenement: document.getElementById('i-date').value || null
+  }).select().single();
+
+  const { data: itemsModele } = await sb.from('checklists_modele_items').select('*').eq('modele_id', modeleId).order('ordre');
+  if (itemsModele && itemsModele.length) {
+    await sb.from('checklists_instance_items').insert(
+      itemsModele.map(it => ({ instance_id: instance.id, libelle: it.libelle, ordre: it.ordre }))
+    );
+  }
+  e.target.reset();
+  chargerInstances();
+});
+
+function initPage() {
+  chargerModeles();
+  chargerInstances();
+}
+</script>
+</body>
+</html>

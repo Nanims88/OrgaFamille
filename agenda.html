@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chez nous — Agenda</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+
+<div id="gate">
+  <div class="carte">
+    <h2 class="titre">🏡 Chez nous</h2>
+    <p>Mot de passe famille</p>
+    <form id="gate-form">
+      <input id="gate-input" type="password" placeholder="•••••••" autofocus>
+      <button type="submit">Entrer</button>
+    </form>
+    <p class="erreur" id="gate-erreur"></p>
+  </div>
+</div>
+
+<div id="app">
+  <header class="entete">
+    <h1 class="titre">📅 Agenda</h1>
+    <div class="date-du-jour" id="date-jour"></div>
+  </header>
+  <nav class="modules">
+    <a href="index.html">🏠 Aujourd'hui</a>
+    <a href="menage.html">🧹 Ménage</a>
+    <a href="agenda.html">📅 Agenda</a>
+    <a href="activites.html">🎒 Activités</a>
+    <a href="checklists.html">✅ Checklists</a>
+    <a href="parametres.html">⚙️ Réglages</a>
+  </nav>
+  <main>
+
+    <h2 class="section-titre">Événements à venir</h2>
+    <div class="grille-cartes" id="liste-evenements"></div>
+
+    <div class="carte" style="margin-top:14px;">
+      <strong>Ajouter un événement</strong>
+      <form class="mini" id="form-evenement">
+        <input type="text" id="e-titre" placeholder="Titre (ex: RDV dentiste)" required>
+        <select id="e-membre"><option value="">👨‍👩‍👧‍👦 Toute la famille</option></select>
+        <input type="date" id="e-date" required>
+        <input type="time" id="e-heure">
+        <input type="text" id="e-lieu" placeholder="Lieu">
+        <select id="e-depose"><option value="">Dépose : —</option></select>
+        <select id="e-recupere"><option value="">Récupère : —</option></select>
+        <button class="btn" type="submit">Ajouter</button>
+      </form>
+    </div>
+
+    <h2 class="section-titre">Planning récurrent (école, garderie...)</h2>
+    <div class="carte" style="overflow-x:auto;">
+      <div style="display:flex;gap:6px;margin-bottom:12px;">
+        <button class="btn" data-type="normal" onclick="changerTypeAffiche('normal')">📚 Semaine normale</button>
+        <button class="btn" data-type="mercredi" onclick="changerTypeAffiche('mercredi')" style="background:var(--ink-soft)">🌤️ Mercredi</button>
+        <button class="btn" data-type="vacances" onclick="changerTypeAffiche('vacances')" style="background:var(--ink-soft)">🏖️ Vacances</button>
+      </div>
+      <table style="width:100%;border-collapse:collapse;" id="table-planning"></table>
+    </div>
+
+    <div class="carte" style="margin-top:14px;">
+      <strong>Ajouter une ligne de planning récurrent</strong>
+      <form class="mini" id="form-planning">
+        <select id="p-membre"></select>
+        <select id="p-jour">
+          <option value="1">Lundi</option><option value="2">Mardi</option><option value="3">Mercredi</option>
+          <option value="4">Jeudi</option><option value="5">Vendredi</option><option value="6">Samedi</option><option value="0">Dimanche</option>
+        </select>
+        <select id="p-type">
+          <option value="normal">Semaine normale</option>
+          <option value="mercredi">Mercredi</option>
+          <option value="vacances">Vacances</option>
+        </select>
+        <input type="text" id="p-lieu" placeholder="Lieu (école, garderie...)" required>
+        <input type="time" id="p-debut">
+        <input type="time" id="p-fin">
+        <button class="btn" type="submit">Ajouter</button>
+      </form>
+    </div>
+
+  </main>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="assets/config.js"></script>
+<script src="assets/app.js"></script>
+<script>
+document.getElementById('date-jour').textContent = formatDateLongue(dateAujourdhui());
+let typeAffiche = 'normal';
+
+async function remplirSelectsMembres() {
+  const membres = await getMembres();
+  const options = membres.map(m => `<option value="${m.id}">${m.icone} ${m.nom}</option>`).join('');
+  document.getElementById('e-membre').innerHTML += options;
+  document.getElementById('e-depose').innerHTML += options;
+  document.getElementById('e-recupere').innerHTML += options;
+  document.getElementById('p-membre').innerHTML = options;
+}
+
+async function chargerEvenements() {
+  const auj = dateAujourdhui();
+  const { data } = await sb.from('evenements').select('*').gte('date_debut', auj + 'T00:00:00').order('date_debut').limit(20);
+  const membres = await getMembres();
+  const membresParId = Object.fromEntries(membres.map(m => [m.id, m]));
+
+  document.getElementById('liste-evenements').innerHTML = (data || []).map(e => {
+    const m = membresParId[e.membre_id];
+    const d = new Date(e.date_debut);
+    const depose = membresParId[e.qui_depose];
+    const recupere = membresParId[e.qui_recupere];
+    return `
+      <div class="carte" style="border-top:5px solid ${m ? m.couleur : 'var(--tous)'}">
+        <strong>${e.titre}</strong><br>
+        <span style="color:var(--ink-soft);font-size:0.9rem;">${d.toLocaleDateString('fr-FR', {weekday:'long', day:'numeric', month:'short'})} ${e.date_debut.slice(11,16) !== '00:00' ? '· ' + e.date_debut.slice(11,16) : ''}</span>
+        ${e.lieu ? '<br>📍 ' + e.lieu : ''}
+        <div style="margin-top:6px;">${badgeMembre(m)}</div>
+        ${depose || recupere ? `<div style="margin-top:6px;font-size:0.85rem;color:var(--ink-soft);">🚗 ${depose ? 'Dépose : ' + depose.nom : ''} ${recupere ? '· Récupère : ' + recupere.nom : ''}</div>` : ''}
+      </div>
+    `;
+  }).join('') || '<div class="vide">Aucun événement à venir.</div>';
+}
+
+document.getElementById('form-evenement').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const date = document.getElementById('e-date').value;
+  const heure = document.getElementById('e-heure').value || '00:00';
+  await sb.from('evenements').insert({
+    titre: document.getElementById('e-titre').value,
+    membre_id: document.getElementById('e-membre').value || null,
+    date_debut: `${date}T${heure}:00`,
+    lieu: document.getElementById('e-lieu').value || null,
+    qui_depose: document.getElementById('e-depose').value || null,
+    qui_recupere: document.getElementById('e-recupere').value || null
+  });
+  e.target.reset();
+  chargerEvenements();
+});
+
+function changerTypeAffiche(t) {
+  typeAffiche = t;
+  document.querySelectorAll('#table-planning').forEach(() => {});
+  document.querySelectorAll('button[data-type]').forEach(b => {
+    b.style.background = b.dataset.type === t ? 'var(--ink)' : 'var(--ink-soft)';
+  });
+  chargerPlanning();
+}
+
+async function chargerPlanning() {
+  const membres = await getMembres();
+  const { data } = await sb.from('planning_recurrent').select('*').eq('type_semaine', typeAffiche);
+  const joursOrdre = [1,2,3,4,5,6,0];
+  const nomJours = {0:'Dimanche',1:'Lundi',2:'Mardi',3:'Mercredi',4:'Jeudi',5:'Vendredi',6:'Samedi'};
+
+  let html = `<tr><th style="text-align:left;padding:6px;">Membre</th>${joursOrdre.map(j => `<th style="padding:6px;">${nomJours[j]}</th>`).join('')}</tr>`;
+  membres.forEach(m => {
+    html += `<tr><td style="padding:6px;">${badgeMembre(m)}</td>`;
+    joursOrdre.forEach(j => {
+      const lignes = (data || []).filter(p => p.membre_id === m.id && p.jour_semaine === j);
+      html += `<td style="padding:6px;border-left:1px solid var(--border);font-size:0.82rem;">${lignes.map(l => `${l.lieu}<br><span style="color:var(--ink-soft)">${formatHeure(l.heure_debut)}–${formatHeure(l.heure_fin)}</span>`).join('<hr style="border:none;border-top:1px dashed var(--border);margin:4px 0;">') || '—'}</td>`;
+    });
+    html += '</tr>';
+  });
+  document.getElementById('table-planning').innerHTML = html;
+}
+
+document.getElementById('form-planning').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  await sb.from('planning_recurrent').insert({
+    membre_id: document.getElementById('p-membre').value,
+    jour_semaine: parseInt(document.getElementById('p-jour').value),
+    type_semaine: document.getElementById('p-type').value,
+    lieu: document.getElementById('p-lieu').value,
+    heure_debut: document.getElementById('p-debut').value || null,
+    heure_fin: document.getElementById('p-fin').value || null
+  });
+  e.target.reset();
+  chargerPlanning();
+});
+
+function initPage() {
+  remplirSelectsMembres().then(() => {
+    chargerEvenements();
+    chargerPlanning();
+  });
+}
+</script>
+</body>
+</html>

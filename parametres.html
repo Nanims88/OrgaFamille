@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chez nous — Réglages</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+
+<div id="gate">
+  <div class="carte">
+    <h2 class="titre">🏡 Chez nous</h2>
+    <p>Mot de passe famille</p>
+    <form id="gate-form">
+      <input id="gate-input" type="password" placeholder="•••••••" autofocus>
+      <button type="submit">Entrer</button>
+    </form>
+    <p class="erreur" id="gate-erreur"></p>
+  </div>
+</div>
+
+<div id="app">
+  <header class="entete">
+    <h1 class="titre">⚙️ Réglages</h1>
+    <div class="date-du-jour" id="date-jour"></div>
+  </header>
+  <nav class="modules">
+    <a href="index.html">🏠 Aujourd'hui</a>
+    <a href="menage.html">🧹 Ménage</a>
+    <a href="agenda.html">📅 Agenda</a>
+    <a href="activites.html">🎒 Activités</a>
+    <a href="checklists.html">✅ Checklists</a>
+    <a href="parametres.html">⚙️ Réglages</a>
+  </nav>
+  <main>
+
+    <h2 class="section-titre">Membres de la famille</h2>
+    <div class="grille-cartes" id="liste-membres"></div>
+
+    <h2 class="section-titre">Ajouter un membre</h2>
+    <div class="carte">
+      <form class="mini" id="form-membre">
+        <input type="text" id="mb-nom" placeholder="Prénom" required>
+        <input type="color" id="mb-couleur" value="#4F7C8C">
+        <input type="text" id="mb-icone" placeholder="Icône (ex: 👦)" style="width:90px" value="🙂">
+        <select id="mb-type">
+          <option value="adulte">Adulte</option>
+          <option value="enfant">Enfant</option>
+        </select>
+        <button class="btn" type="submit">Ajouter</button>
+      </form>
+    </div>
+
+  </main>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="assets/config.js"></script>
+<script src="assets/app.js"></script>
+<script>
+document.getElementById('date-jour').textContent = formatDateLongue(dateAujourdhui());
+
+async function chargerMembres() {
+  const { data } = await sb.from('membres').select('*').order('ordre');
+  document.getElementById('liste-membres').innerHTML = (data || []).map(m => `
+    <div class="carte" style="border-top:5px solid ${m.couleur}">
+      <div class="icone-lg">${m.icone}</div>
+      <strong>${m.nom}</strong><br>
+      <span style="color:var(--ink-soft);font-size:0.85rem;">${m.type}</span>
+      <div style="margin-top:8px;">
+        <button class="btn" style="background:var(--ink-soft)" onclick="supprimerMembre('${m.id}')">Retirer</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+async function supprimerMembre(id) {
+  if (!confirm('Retirer ce membre ? (les tâches/événements liés resteront mais sans propriétaire)')) return;
+  await sb.from('membres').delete().eq('id', id);
+  chargerMembres();
+}
+
+document.getElementById('form-membre').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const { data: existants } = await sb.from('membres').select('ordre').order('ordre', { ascending: false }).limit(1);
+  const ordre = existants && existants[0] ? existants[0].ordre + 1 : 1;
+  await sb.from('membres').insert({
+    nom: document.getElementById('mb-nom').value,
+    couleur: document.getElementById('mb-couleur').value,
+    icone: document.getElementById('mb-icone').value || '🙂',
+    type: document.getElementById('mb-type').value,
+    ordre
+  });
+  e.target.reset();
+  document.getElementById('mb-icone').value = '🙂';
+  chargerMembres();
+});
+
+function initPage() { chargerMembres(); }
+</script>
+</body>
+</html>
