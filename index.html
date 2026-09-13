@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Chez nous — Aujourd'hui</title>
-<link rel="stylesheet" href="assets/style.css?v=6">
+<link rel="stylesheet" href="assets/style.css?v=7">
 </head>
 <body>
 
@@ -74,8 +74,8 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="assets/config.js?v=6"></script>
-<script src="assets/app.js?v=6"></script>
+<script src="assets/config.js?v=7"></script>
+<script src="assets/app.js?v=7"></script>
 <script>
 document.getElementById('date-jour').textContent = formatDateLongue(dateAujourdhui());
 
@@ -211,6 +211,7 @@ function allerSemaineActuelle() { offsetSemaine = 0; chargerSemaine(); }
 
 async function chargerSemaine() {
   const base = new Date();
+  if (base.getDay() === 0) base.setDate(base.getDate() + 1); // dimanche -> on regarde la semaine à venir
   base.setDate(base.getDate() + offsetSemaine * 7);
   const lundi = lundiDeLaSemaine(base);
   const jours = [...Array(7)].map((_, i) => {
