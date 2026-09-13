@@ -181,7 +181,7 @@ async function chargerSemaine() {
     d.setDate(d.getDate() + i);
     return d;
   });
-  const dateStrs = jours.map(d => d.toISOString().slice(0, 10));
+  const dateStrs = jours.map(d => formatDateLocale(d));
 
   const bornInf = new Date(lundi.getTime() - 60 * 86400000).toISOString().slice(0, 10);
   const bornSup = new Date(lundi.getTime() + 66 * 86400000).toISOString().slice(0, 10);
@@ -268,7 +268,7 @@ async function chargerMois() {
   let html = noms.map(n => `<div class="mois-entete-jour">${n}</div>`).join('');
 
   html += jours.map(d => {
-    const ds = d.toISOString().slice(0, 10);
+    const ds = formatDateLocale(d);
     const evtsJour = (evenementsRes.data || []).filter(e => evenementCouvre(e, ds));
     const horsMois = d.getMonth() !== mois;
     const estVacances = evtsJour.some(e => !e.membre_id && e.mode === 'remplace');

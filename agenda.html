@@ -63,6 +63,7 @@
     <div class="carte" style="margin-top:14px;">
       <strong>Ajouter un événement</strong>
       <form class="mini" id="form-evenement">
+        <input type="hidden" id="e-id">
         <input type="text" id="e-titre" placeholder="Titre (ex: RDV dentiste, Vacances Toussaint)" required>
         <select id="e-membre"><option value="">👨‍👩‍👧‍👦 Toute la famille</option></select>
         <select id="e-mode">
@@ -75,7 +76,8 @@
         <input type="text" id="e-lieu" placeholder="Lieu">
         <select id="e-depose"><option value="">Dépose : —</option></select>
         <select id="e-recupere"><option value="">Récupère : —</option></select>
-        <button class="btn" type="submit">Ajouter</button>
+        <button class="btn" type="submit" id="e-submit">Ajouter</button>
+        <button class="btn" type="button" id="e-annuler" style="display:none;background:var(--ink-soft);" onclick="annulerEditionEvenement()">Annuler</button>
       </form>
     </div>
 
@@ -105,6 +107,7 @@ async function chargerEvenements() {
   const enCours = (dataPassees || []).filter(e => evenementCouvre(e, auj));
 
   const tous = [...enCours, ...(data || [])];
+  _evenementsCache = tous;
   const membres = await getMembres();
   const membresParId = Object.fromEntries(membres.map(m => [m.id, m]));
 
@@ -128,17 +131,55 @@ async function chargerEvenements() {
           <span class="badge-membre" style="background:${e.mode === 'remplace' ? 'var(--ink)' : 'var(--ink-soft)'}">${e.mode === 'remplace' ? '🏖️ Remplace' : '➕ En plus'}</span>
         </div>
         ${depose || recupere ? `<div style="margin-top:6px;font-size:0.85rem;color:var(--ink-soft);">🚗 ${depose ? 'Dépose : ' + depose.nom : ''} ${recupere ? '· Récupère : ' + recupere.nom : ''}</div>` : ''}
+        <div style="margin-top:10px;display:flex;gap:6px;">
+          <button class="btn" style="background:var(--paper);color:var(--ink);box-shadow:var(--shadow-1);" onclick="modifierEvenement('${e.id}')">✏️ Modifier</button>
+          <button class="btn" style="background:var(--ink-soft);" onclick="supprimerEvenement('${e.id}')">Supprimer</button>
+        </div>
       </div>
     `;
   }).join('') || '<div class="vide">Aucun événement à venir.</div>';
 }
+
+function modifierEvenement(id) {
+  const e = _evenementsCache.find(x => x.id === id);
+  if (!e) return;
+  document.getElementById('e-id').value = e.id;
+  document.getElementById('e-titre').value = e.titre;
+  document.getElementById('e-membre').value = e.membre_id || '';
+  document.getElementById('e-mode').value = e.mode;
+  document.getElementById('e-date-debut').value = e.date_debut.slice(0, 10);
+  document.getElementById('e-date-fin').value = e.date_fin ? e.date_fin.slice(0, 10) : '';
+  document.getElementById('e-heure').value = e.date_debut.slice(11, 16) !== '00:00' ? e.date_debut.slice(11, 16) : '';
+  document.getElementById('e-lieu').value = e.lieu || '';
+  document.getElementById('e-depose').value = e.qui_depose || '';
+  document.getElementById('e-recupere').value = e.qui_recupere || '';
+  document.getElementById('e-submit').textContent = 'Enregistrer les modifications';
+  document.getElementById('e-annuler').style.display = 'inline-block';
+  document.getElementById('form-evenement').scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+function annulerEditionEvenement() {
+  document.getElementById('form-evenement').reset();
+  document.getElementById('e-id').value = '';
+  document.getElementById('e-submit').textContent = 'Ajouter';
+  document.getElementById('e-annuler').style.display = 'none';
+}
+
+async function supprimerEvenement(id) {
+  if (!confirm('Supprimer cet événement ?')) return;
+  await sb.from('evenements').delete().eq('id', id);
+  chargerEvenements();
+}
+
+let _evenementsCache = [];
 
 document.getElementById('form-evenement').addEventListener('submit', async (e) => {
   e.preventDefault();
   const dateDebut = document.getElementById('e-date-debut').value;
   const dateFin = document.getElementById('e-date-fin').value;
   const heure = document.getElementById('e-heure').value || '00:00';
-  await sb.from('evenements').insert({
+  const id = document.getElementById('e-id').value;
+  const payload = {
     titre: document.getElementById('e-titre').value,
     membre_id: document.getElementById('e-membre').value || null,
     mode: document.getElementById('e-mode').value,
@@ -147,8 +188,13 @@ document.getElementById('form-evenement').addEventListener('submit', async (e) =
     lieu: document.getElementById('e-lieu').value || null,
     qui_depose: document.getElementById('e-depose').value || null,
     qui_recupere: document.getElementById('e-recupere').value || null
-  });
-  e.target.reset();
+  };
+  if (id) {
+    await sb.from('evenements').update(payload).eq('id', id);
+  } else {
+    await sb.from('evenements').insert(payload);
+  }
+  annulerEditionEvenement();
   chargerEvenements();
 });
 
