@@ -53,7 +53,13 @@ function avatarMembre(membre) {
 
 // ---------- Dates ----------
 function dateAujourdhui() {
-  return new Date().toISOString().slice(0, 10);
+  return formatDateLocale(new Date());
+}
+function formatDateLocale(d) {
+  const annee = d.getFullYear();
+  const mois = String(d.getMonth() + 1).padStart(2, '0');
+  const jour = String(d.getDate()).padStart(2, '0');
+  return `${annee}-${mois}-${jour}`;
 }
 function formatDateLongue(d) {
   return new Date(d).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
