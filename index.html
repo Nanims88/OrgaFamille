@@ -35,10 +35,38 @@
   </nav>
   <main>
 
-    <div id="tous-du-jour"></div>
+    <div class="vue-tabs">
+      <button id="tab-jour" class="actif" onclick="changerVue('jour')">📆 Jour</button>
+      <button id="tab-semaine" onclick="changerVue('semaine')">🗓️ Semaine</button>
+      <button id="tab-mois" onclick="changerVue('mois')">📅 Mois</button>
+    </div>
 
-    <h2 class="section-titre">Pour chacun</h2>
-    <div class="lanes" id="lanes"></div>
+    <!-- ---------- Vue Jour ---------- -->
+    <div id="vue-jour">
+      <div id="tous-du-jour"></div>
+      <h2 class="section-titre">Pour chacun</h2>
+      <div class="lanes" id="lanes"></div>
+    </div>
+
+    <!-- ---------- Vue Semaine ---------- -->
+    <div id="vue-semaine" style="display:none;">
+      <div class="semaine-nav">
+        <button class="btn" onclick="deplacerSemaine(-1)">◀</button>
+        <button class="btn" onclick="allerSemaineActuelle()">Cette semaine</button>
+        <button class="btn" onclick="deplacerSemaine(1)">▶</button>
+      </div>
+      <div class="semaine-grid" id="semaine-grid"></div>
+    </div>
+
+    <!-- ---------- Vue Mois ---------- -->
+    <div id="vue-mois" style="display:none;">
+      <div class="mois-nav">
+        <button class="btn" onclick="deplacerMois(-1)">◀</button>
+        <button class="btn" id="mois-titre" onclick="allerMoisActuel()">Ce mois</button>
+        <button class="btn" onclick="deplacerMois(1)">▶</button>
+      </div>
+      <div class="mois-grid" id="mois-grid"></div>
+    </div>
 
   </main>
 </div>
@@ -49,6 +77,16 @@
 <script>
 document.getElementById('date-jour').textContent = formatDateLongue(dateAujourdhui());
 
+function changerVue(v) {
+  ['jour','semaine','mois'].forEach(x => {
+    document.getElementById('vue-' + x).style.display = x === v ? 'block' : 'none';
+    document.getElementById('tab-' + x).classList.toggle('actif', x === v);
+  });
+  if (v === 'semaine') chargerSemaine();
+  if (v === 'mois') chargerMois();
+}
+
+// ================= VUE JOUR =================
 async function toggleTache(tacheId, membreId, faitActuel) {
   const nouvelEtat = !faitActuel;
   await sb.from('taches_menage_log').upsert({
@@ -64,7 +102,6 @@ async function toggleTache(tacheId, membreId, faitActuel) {
 async function chargerLanes() {
   const jourSemaine = new Date().getDay();
   const auj = dateAujourdhui();
-  // Fenêtre large pour attraper les événements/périodes (ex: vacances) qui couvrent aujourd'hui
   const bornInf = new Date(Date.now() - 60 * 86400000).toISOString().slice(0, 10);
   const bornSup = new Date(Date.now() + 60 * 86400000).toISOString().slice(0, 10);
 
@@ -80,8 +117,6 @@ async function chargerLanes() {
   (logs.data || []).forEach(l => logsMap[l.tache_id] = l);
 
   const evenementsDuJour = (evenementsRes.data || []).filter(e => evenementCouvre(e, auj));
-
-  // Bandeau "toute la famille" : événements membre_id = null qui couvrent aujourd'hui
   const evtsTous = evenementsDuJour.filter(e => !e.membre_id);
   const zoneTous = document.getElementById('tous-du-jour');
   zoneTous.innerHTML = evtsTous.length ? `
@@ -98,13 +133,10 @@ async function chargerLanes() {
   const lanes = document.getElementById('lanes');
   lanes.innerHTML = membres.map(m => {
     const evtsM = evenementsDuJour.filter(e => e.membre_id === m.id);
-    const evtsTousPourM = evtsTous; // les événements "tous" s'appliquent aussi à chacun
-    const evtsRemplace = [...evtsM, ...evtsTousPourM].filter(e => e.mode === 'remplace');
+    const evtsRemplace = [...evtsM, ...evtsTous].filter(e => e.mode === 'remplace');
     const evtsAjout = evtsM.filter(e => e.mode === 'ajout');
-
     const planningM = evtsRemplace.length ? [] : (planning.data || []).filter(p => p.membre_id === m.id);
     const tachesM = (taches.data || []).filter(t => t.membre_id === m.id);
-
     const rienDuTout = tachesM.length === 0 && planningM.length === 0 && evtsAjout.length === 0 && evtsRemplace.length === 0;
 
     return `
@@ -125,6 +157,134 @@ async function chargerLanes() {
       </div>
     `;
   }).join('');
+}
+
+// ================= VUE SEMAINE =================
+let offsetSemaine = 0;
+function lundiDeLaSemaine(date) {
+  const d = new Date(date);
+  const jour = d.getDay(); // 0=dimanche
+  const decalage = jour === 0 ? -6 : 1 - jour;
+  d.setDate(d.getDate() + decalage);
+  d.setHours(0,0,0,0);
+  return d;
+}
+function deplacerSemaine(delta) { offsetSemaine += delta; chargerSemaine(); }
+function allerSemaineActuelle() { offsetSemaine = 0; chargerSemaine(); }
+
+async function chargerSemaine() {
+  const base = new Date();
+  base.setDate(base.getDate() + offsetSemaine * 7);
+  const lundi = lundiDeLaSemaine(base);
+  const jours = [...Array(7)].map((_, i) => {
+    const d = new Date(lundi);
+    d.setDate(d.getDate() + i);
+    return d;
+  });
+  const dateStrs = jours.map(d => d.toISOString().slice(0, 10));
+
+  const bornInf = new Date(lundi.getTime() - 60 * 86400000).toISOString().slice(0, 10);
+  const bornSup = new Date(lundi.getTime() + 66 * 86400000).toISOString().slice(0, 10);
+
+  const [membres, planning, evenementsRes] = await Promise.all([
+    getMembres(),
+    sb.from('planning_recurrent').select('*'),
+    sb.from('evenements').select('*').gte('date_debut', bornInf + 'T00:00:00').lte('date_debut', bornSup + 'T23:59:59')
+  ]);
+
+  const grid = document.getElementById('semaine-grid');
+  grid.innerHTML = jours.map((d, i) => {
+    const ds = dateStrs[i];
+    const jourSemaine = d.getDay();
+    const evtsJour = (evenementsRes.data || []).filter(e => evenementCouvre(e, ds));
+    const evtsTousJour = evtsJour.filter(e => !e.membre_id);
+    const estVacances = evtsTousJour.some(e => e.mode === 'remplace');
+
+    const contenu = membres.map(m => {
+      const evtsM = evtsJour.filter(e => e.membre_id === m.id);
+      const remplace = [...evtsM, ...evtsTousJour].filter(e => e.mode === 'remplace');
+      const ajout = evtsM.filter(e => e.mode === 'ajout');
+      const planningM = remplace.length ? [] : (planning.data || []).filter(p => p.membre_id === m.id && p.jour_semaine === jourSemaine);
+      if (!remplace.length && !ajout.length && !planningM.length) return '';
+      return `
+        <div class="item-ligne">
+          ${avatarMembre(m)}
+          <span>
+            ${remplace.map(e => `🏖️ ${e.titre}`).join('<br>')}
+            ${planningM.map(p => `📍 ${p.lieu} ${formatHeure(p.heure_debut)}`).join('<br>')}
+            ${ajout.map(e => `🗓️ ${e.titre}`).join('<br>')}
+          </span>
+        </div>`;
+    }).join('') + evtsTousJour.map(e => `<div class="item-ligne">👨‍👩‍👧‍👦 ${e.titre}</div>`).join('');
+
+    return `
+      <div class="jour-carte ${estVacances ? 'vacances' : ''}">
+        <h4>${d.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' })}</h4>
+        ${contenu || '<div class="rien">Rien de prévu</div>'}
+      </div>
+    `;
+  }).join('');
+}
+
+// ================= VUE MOIS =================
+let offsetMois = 0;
+function deplacerMois(delta) { offsetMois += delta; chargerMois(); }
+function allerMoisActuel() { offsetMois = 0; chargerMois(); }
+
+async function chargerMois() {
+  const base = new Date();
+  base.setDate(1);
+  base.setMonth(base.getMonth() + offsetMois);
+  const mois = base.getMonth();
+  const annee = base.getFullYear();
+
+  document.getElementById('mois-titre').textContent = base.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+
+  const premierJourMois = new Date(annee, mois, 1);
+  const dernierJourMois = new Date(annee, mois + 1, 0);
+  const debutGrille = lundiDeLaSemaine(premierJourMois);
+  const finGrille = new Date(dernierJourMois);
+  const decalageFin = finGrille.getDay() === 0 ? 0 : 7 - finGrille.getDay();
+  finGrille.setDate(finGrille.getDate() + decalageFin);
+
+  const jours = [];
+  let curseur = new Date(debutGrille);
+  while (curseur <= finGrille) {
+    jours.push(new Date(curseur));
+    curseur.setDate(curseur.getDate() + 1);
+  }
+
+  const bornInf = debutGrille.toISOString().slice(0, 10);
+  const bornSup = new Date(finGrille.getTime() + 60 * 86400000).toISOString().slice(0, 10);
+  const bornInfLarge = new Date(debutGrille.getTime() - 60 * 86400000).toISOString().slice(0, 10);
+
+  const [membres, evenementsRes] = await Promise.all([
+    getMembres(),
+    sb.from('evenements').select('*').gte('date_debut', bornInfLarge + 'T00:00:00').lte('date_debut', bornSup + 'T23:59:59')
+  ]);
+  const membresParId = Object.fromEntries(membres.map(m => [m.id, m]));
+
+  const noms = ['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
+  let html = noms.map(n => `<div class="mois-entete-jour">${n}</div>`).join('');
+
+  html += jours.map(d => {
+    const ds = d.toISOString().slice(0, 10);
+    const evtsJour = (evenementsRes.data || []).filter(e => evenementCouvre(e, ds));
+    const horsMois = d.getMonth() !== mois;
+    const estVacances = evtsJour.some(e => !e.membre_id && e.mode === 'remplace');
+    const puces = evtsJour.slice(0, 5).map(e => {
+      const m = membresParId[e.membre_id];
+      return `<span class="puce" style="background:${m ? m.couleur : 'var(--tous)'}" title="${e.titre}"></span>`;
+    }).join('');
+    return `
+      <div class="mois-cellule ${horsMois ? 'hors-mois' : ''} ${estVacances ? 'vacances' : ''}">
+        <div class="mois-jour-num">${d.getDate()}</div>
+        <div class="mois-puces">${puces}</div>
+      </div>
+    `;
+  }).join('');
+
+  document.getElementById('mois-grid').innerHTML = html;
 }
 
 function initPage() {
