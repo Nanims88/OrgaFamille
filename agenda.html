@@ -35,49 +35,46 @@
   </nav>
   <main>
 
-    <h2 class="section-titre">Événements à venir</h2>
-    <div class="grille-cartes" id="liste-evenements"></div>
-
-    <div class="carte" style="margin-top:14px;">
-      <strong>Ajouter un événement</strong>
-      <form class="mini" id="form-evenement">
-        <input type="text" id="e-titre" placeholder="Titre (ex: RDV dentiste)" required>
-        <select id="e-membre"><option value="">👨‍👩‍👧‍👦 Toute la famille</option></select>
-        <input type="date" id="e-date" required>
-        <input type="time" id="e-heure">
-        <input type="text" id="e-lieu" placeholder="Lieu">
-        <select id="e-depose"><option value="">Dépose : —</option></select>
-        <select id="e-recupere"><option value="">Récupère : —</option></select>
-        <button class="btn" type="submit">Ajouter</button>
-      </form>
-    </div>
-
-    <h2 class="section-titre">Planning récurrent (école, garderie...)</h2>
+    <h2 class="section-titre">Semaine type</h2>
+    <p style="color:var(--ink-soft);font-size:0.9rem;margin-top:-6px;">Le planning habituel de chacun, jour par jour. Un événement en dessous peut le remplacer (vacances) ou s'y ajouter (RDV).</p>
     <div class="carte" style="overflow-x:auto;">
-      <div style="display:flex;gap:6px;margin-bottom:12px;">
-        <button class="btn" data-type="normal" onclick="changerTypeAffiche('normal')">📚 Semaine normale</button>
-        <button class="btn" data-type="mercredi" onclick="changerTypeAffiche('mercredi')" style="background:var(--ink-soft)">🌤️ Mercredi</button>
-        <button class="btn" data-type="vacances" onclick="changerTypeAffiche('vacances')" style="background:var(--ink-soft)">🏖️ Vacances</button>
-      </div>
       <table style="width:100%;border-collapse:collapse;" id="table-planning"></table>
     </div>
 
     <div class="carte" style="margin-top:14px;">
-      <strong>Ajouter une ligne de planning récurrent</strong>
+      <strong>Ajouter une ligne à la semaine type</strong>
       <form class="mini" id="form-planning">
         <select id="p-membre"></select>
         <select id="p-jour">
           <option value="1">Lundi</option><option value="2">Mardi</option><option value="3">Mercredi</option>
           <option value="4">Jeudi</option><option value="5">Vendredi</option><option value="6">Samedi</option><option value="0">Dimanche</option>
         </select>
-        <select id="p-type">
-          <option value="normal">Semaine normale</option>
-          <option value="mercredi">Mercredi</option>
-          <option value="vacances">Vacances</option>
-        </select>
         <input type="text" id="p-lieu" placeholder="Lieu (école, garderie...)" required>
         <input type="time" id="p-debut">
         <input type="time" id="p-fin">
+        <button class="btn" type="submit">Ajouter</button>
+      </form>
+    </div>
+
+    <h2 class="section-titre">Événements</h2>
+    <p style="color:var(--ink-soft);font-size:0.9rem;margin-top:-6px;">Un événement ponctuel ou une période (ex: vacances). "Remplace" masque la semaine type pendant cette période pour la ou les personnes concernées ; "Vient en plus" s'affiche à côté.</p>
+    <div class="grille-cartes" id="liste-evenements"></div>
+
+    <div class="carte" style="margin-top:14px;">
+      <strong>Ajouter un événement</strong>
+      <form class="mini" id="form-evenement">
+        <input type="text" id="e-titre" placeholder="Titre (ex: RDV dentiste, Vacances Toussaint)" required>
+        <select id="e-membre"><option value="">👨‍👩‍👧‍👦 Toute la famille</option></select>
+        <select id="e-mode">
+          <option value="ajout">Vient en plus</option>
+          <option value="remplace">Remplace la semaine type</option>
+        </select>
+        <label style="font-size:0.85rem;color:var(--ink-soft);">Du <input type="date" id="e-date-debut" required></label>
+        <label style="font-size:0.85rem;color:var(--ink-soft);">au <input type="date" id="e-date-fin" placeholder="(optionnel)"></label>
+        <input type="time" id="e-heure">
+        <input type="text" id="e-lieu" placeholder="Lieu">
+        <select id="e-depose"><option value="">Dépose : —</option></select>
+        <select id="e-recupere"><option value="">Récupère : —</option></select>
         <button class="btn" type="submit">Ajouter</button>
       </form>
     </div>
@@ -90,7 +87,6 @@
 <script src="assets/app.js"></script>
 <script>
 document.getElementById('date-jour').textContent = formatDateLongue(dateAujourdhui());
-let typeAffiche = 'normal';
 
 async function remplirSelectsMembres() {
   const membres = await getMembres();
@@ -103,21 +99,34 @@ async function remplirSelectsMembres() {
 
 async function chargerEvenements() {
   const auj = dateAujourdhui();
-  const { data } = await sb.from('evenements').select('*').gte('date_debut', auj + 'T00:00:00').order('date_debut').limit(20);
+  const { data } = await sb.from('evenements').select('*').gte('date_debut', auj + 'T00:00:00').order('date_debut').limit(30);
+  const { data: dataPassees } = await sb.from('evenements').select('*').lt('date_debut', auj + 'T00:00:00').order('date_debut', { ascending: false }).limit(10);
+  // on garde aussi les événements passés dont la période (date_fin) couvre encore aujourd'hui
+  const enCours = (dataPassees || []).filter(e => evenementCouvre(e, auj));
+
+  const tous = [...enCours, ...(data || [])];
   const membres = await getMembres();
   const membresParId = Object.fromEntries(membres.map(m => [m.id, m]));
 
-  document.getElementById('liste-evenements').innerHTML = (data || []).map(e => {
+  document.getElementById('liste-evenements').innerHTML = tous.map(e => {
     const m = membresParId[e.membre_id];
-    const d = new Date(e.date_debut);
+    const debut = new Date(e.date_debut);
+    const estPeriode = e.date_fin && e.date_fin.slice(0, 10) !== e.date_debut.slice(0, 10);
     const depose = membresParId[e.qui_depose];
     const recupere = membresParId[e.qui_recupere];
     return `
       <div class="carte" style="border-left:4px solid ${m ? m.couleur : 'var(--tous)'}">
         <strong>${e.titre}</strong><br>
-        <span style="color:var(--ink-soft);font-size:0.9rem;">${d.toLocaleDateString('fr-FR', {weekday:'long', day:'numeric', month:'short'})} ${e.date_debut.slice(11,16) !== '00:00' ? '· ' + e.date_debut.slice(11,16) : ''}</span>
+        <span style="color:var(--ink-soft);font-size:0.9rem;">
+          ${estPeriode
+            ? `Du ${debut.toLocaleDateString('fr-FR', {day:'numeric', month:'short'})} au ${new Date(e.date_fin).toLocaleDateString('fr-FR', {day:'numeric', month:'short'})}`
+            : debut.toLocaleDateString('fr-FR', {weekday:'long', day:'numeric', month:'short'}) + (e.date_debut.slice(11,16) !== '00:00' ? ' · ' + e.date_debut.slice(11,16) : '')}
+        </span>
         ${e.lieu ? '<br>📍 ' + e.lieu : ''}
-        <div style="margin-top:6px;">${badgeMembre(m)}</div>
+        <div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
+          ${badgeMembre(m)}
+          <span class="badge-membre" style="background:${e.mode === 'remplace' ? 'var(--ink)' : 'var(--ink-soft)'}">${e.mode === 'remplace' ? '🏖️ Remplace' : '➕ En plus'}</span>
+        </div>
         ${depose || recupere ? `<div style="margin-top:6px;font-size:0.85rem;color:var(--ink-soft);">🚗 ${depose ? 'Dépose : ' + depose.nom : ''} ${recupere ? '· Récupère : ' + recupere.nom : ''}</div>` : ''}
       </div>
     `;
@@ -126,12 +135,15 @@ async function chargerEvenements() {
 
 document.getElementById('form-evenement').addEventListener('submit', async (e) => {
   e.preventDefault();
-  const date = document.getElementById('e-date').value;
+  const dateDebut = document.getElementById('e-date-debut').value;
+  const dateFin = document.getElementById('e-date-fin').value;
   const heure = document.getElementById('e-heure').value || '00:00';
   await sb.from('evenements').insert({
     titre: document.getElementById('e-titre').value,
     membre_id: document.getElementById('e-membre').value || null,
-    date_debut: `${date}T${heure}:00`,
+    mode: document.getElementById('e-mode').value,
+    date_debut: `${dateDebut}T${heure}:00`,
+    date_fin: dateFin ? `${dateFin}T23:59:59` : null,
     lieu: document.getElementById('e-lieu').value || null,
     qui_depose: document.getElementById('e-depose').value || null,
     qui_recupere: document.getElementById('e-recupere').value || null
@@ -140,18 +152,9 @@ document.getElementById('form-evenement').addEventListener('submit', async (e) =
   chargerEvenements();
 });
 
-function changerTypeAffiche(t) {
-  typeAffiche = t;
-  document.querySelectorAll('#table-planning').forEach(() => {});
-  document.querySelectorAll('button[data-type]').forEach(b => {
-    b.style.background = b.dataset.type === t ? 'var(--ink)' : 'var(--ink-soft)';
-  });
-  chargerPlanning();
-}
-
 async function chargerPlanning() {
   const membres = await getMembres();
-  const { data } = await sb.from('planning_recurrent').select('*').eq('type_semaine', typeAffiche);
+  const { data } = await sb.from('planning_recurrent').select('*');
   const joursOrdre = [1,2,3,4,5,6,0];
   const nomJours = {0:'Dimanche',1:'Lundi',2:'Mardi',3:'Mercredi',4:'Jeudi',5:'Vendredi',6:'Samedi'};
 
@@ -160,7 +163,7 @@ async function chargerPlanning() {
     html += `<tr><td style="padding:6px;">${badgeMembre(m)}</td>`;
     joursOrdre.forEach(j => {
       const lignes = (data || []).filter(p => p.membre_id === m.id && p.jour_semaine === j);
-      html += `<td style="padding:6px;border-left:1px solid var(--border);font-size:0.82rem;">${lignes.map(l => `${l.lieu}<br><span style="color:var(--ink-soft)">${formatHeure(l.heure_debut)}–${formatHeure(l.heure_fin)}</span>`).join('<hr style="border:none;border-top:1px dashed var(--border);margin:4px 0;">') || '—'}</td>`;
+      html += `<td style="padding:6px;border-left:1px solid var(--border);font-size:0.82rem;">${lignes.map(l => `${l.lieu}<br><span style="color:var(--ink-soft)">${formatHeure(l.heure_debut)}–${formatHeure(l.heure_fin)}</span>`).join('<hr>') || '—'}</td>`;
     });
     html += '</tr>';
   });
@@ -172,7 +175,6 @@ document.getElementById('form-planning').addEventListener('submit', async (e) =>
   await sb.from('planning_recurrent').insert({
     membre_id: document.getElementById('p-membre').value,
     jour_semaine: parseInt(document.getElementById('p-jour').value),
-    type_semaine: document.getElementById('p-type').value,
     lieu: document.getElementById('p-lieu').value,
     heure_debut: document.getElementById('p-debut').value || null,
     heure_fin: document.getElementById('p-fin').value || null

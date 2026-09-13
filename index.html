@@ -35,11 +35,6 @@
   </nav>
   <main>
 
-    <div class="carte" style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
-      <strong>Aujourd'hui c'est :</strong>
-      <div id="type-semaine-toggle" style="display:flex;gap:6px;"></div>
-    </div>
-
     <div id="tous-du-jour"></div>
 
     <h2 class="section-titre">Pour chacun</h2>
@@ -53,27 +48,6 @@
 <script src="assets/app.js"></script>
 <script>
 document.getElementById('date-jour').textContent = formatDateLongue(dateAujourdhui());
-
-function typeSemaineParDefaut() {
-  const jour = new Date().getDay();
-  return jour === 3 ? 'mercredi' : 'normal';
-}
-function getTypeSemaine() {
-  return localStorage.getItem('type_semaine_' + dateAujourdhui()) || typeSemaineParDefaut();
-}
-function setTypeSemaine(t) {
-  localStorage.setItem('type_semaine_' + dateAujourdhui(), t);
-  chargerLanes();
-}
-
-function renderToggle() {
-  const actuel = getTypeSemaine();
-  const options = [['normal', '📚 Jour normal'], ['mercredi', '🌤️ Mercredi'], ['vacances', '🏖️ Vacances']];
-  document.getElementById('type-semaine-toggle').innerHTML = options.map(([val, label]) => `
-    <button class="btn" style="background:${val === actuel ? 'var(--ink)' : 'var(--paper)'};color:${val === actuel ? 'var(--bg)' : 'var(--ink)'};border:2px solid var(--border)"
-      onclick="setTypeSemaine('${val}')">${label}</button>
-  `).join('');
-}
 
 async function toggleTache(tacheId, membreId, faitActuel) {
   const nouvelEtat = !faitActuel;
@@ -89,42 +63,56 @@ async function toggleTache(tacheId, membreId, faitActuel) {
 
 async function chargerLanes() {
   const jourSemaine = new Date().getDay();
-  const typeSemaine = getTypeSemaine();
   const auj = dateAujourdhui();
+  // Fenêtre large pour attraper les événements/périodes (ex: vacances) qui couvrent aujourd'hui
+  const bornInf = new Date(Date.now() - 60 * 86400000).toISOString().slice(0, 10);
+  const bornSup = new Date(Date.now() + 60 * 86400000).toISOString().slice(0, 10);
 
-  const [membres, taches, logs, planning, evenements] = await Promise.all([
+  const [membres, taches, logs, planning, evenementsRes] = await Promise.all([
     getMembres(),
     sb.from('taches_menage').select('*').eq('actif', true),
     sb.from('taches_menage_log').select('*').eq('date', auj),
-    sb.from('planning_recurrent').select('*').eq('jour_semaine', jourSemaine).eq('type_semaine', typeSemaine),
-    sb.from('evenements').select('*').gte('date_debut', auj + 'T00:00:00').lte('date_debut', auj + 'T23:59:59')
+    sb.from('planning_recurrent').select('*').eq('jour_semaine', jourSemaine),
+    sb.from('evenements').select('*').gte('date_debut', bornInf + 'T00:00:00').lte('date_debut', bornSup + 'T23:59:59')
   ]);
 
   const logsMap = {};
   (logs.data || []).forEach(l => logsMap[l.tache_id] = l);
 
-  // Événements "tous"
-  const evtsTous = (evenements.data || []).filter(e => !e.membre_id);
+  const evenementsDuJour = (evenementsRes.data || []).filter(e => evenementCouvre(e, auj));
+
+  // Bandeau "toute la famille" : événements membre_id = null qui couvrent aujourd'hui
+  const evtsTous = evenementsDuJour.filter(e => !e.membre_id);
   const zoneTous = document.getElementById('tous-du-jour');
   zoneTous.innerHTML = evtsTous.length ? `
     <h2 class="section-titre">👨‍👩‍👧‍👦 Toute la famille</h2>
     <div class="carte">
-      ${evtsTous.map(e => `<div class="item-ligne"><span class="heure">${formatHeure(e.date_debut.slice(11,16))}</span> ${e.titre} ${e.lieu ? '— ' + e.lieu : ''}</div>`).join('')}
+      ${evtsTous.map(e => `
+        <div class="item-ligne">
+          ${e.mode === 'remplace' ? '🏖️' : '🗓️'} ${e.titre}
+          ${e.lieu ? '— ' + e.lieu : ''}
+          ${e.date_debut.slice(11,16) !== '00:00' ? `<span class="heure">${e.date_debut.slice(11,16)}</span>` : ''}
+        </div>`).join('')}
     </div>` : '';
 
   const lanes = document.getElementById('lanes');
   lanes.innerHTML = membres.map(m => {
-    const tachesM = (taches.data || []).filter(t => t.membre_id === m.id);
-    const planningM = (planning.data || []).filter(p => p.membre_id === m.id);
-    const evtsM = (evenements.data || []).filter(e => e.membre_id === m.id);
+    const evtsM = evenementsDuJour.filter(e => e.membre_id === m.id);
+    const evtsTousPourM = evtsTous; // les événements "tous" s'appliquent aussi à chacun
+    const evtsRemplace = [...evtsM, ...evtsTousPourM].filter(e => e.mode === 'remplace');
+    const evtsAjout = evtsM.filter(e => e.mode === 'ajout');
 
-    const rienDuTout = tachesM.length === 0 && planningM.length === 0 && evtsM.length === 0;
+    const planningM = evtsRemplace.length ? [] : (planning.data || []).filter(p => p.membre_id === m.id);
+    const tachesM = (taches.data || []).filter(t => t.membre_id === m.id);
+
+    const rienDuTout = tachesM.length === 0 && planningM.length === 0 && evtsAjout.length === 0 && evtsRemplace.length === 0;
 
     return `
       <div class="lane" style="--m-color:${m.couleur}">
         <h3>${avatarMembre(m)} ${m.nom}</h3>
+        ${evtsRemplace.filter(e => e.membre_id === m.id).map(e => `<div class="item-ligne">🏖️ ${e.titre}</div>`).join('')}
         ${planningM.map(p => `<div class="item-ligne">📍 ${p.lieu} <span class="heure">${formatHeure(p.heure_debut)}–${formatHeure(p.heure_fin)}</span></div>`).join('')}
-        ${evtsM.map(e => `<div class="item-ligne">🗓️ ${e.titre} <span class="heure">${formatHeure(e.date_debut.slice(11,16))}</span></div>`).join('')}
+        ${evtsAjout.map(e => `<div class="item-ligne">🗓️ ${e.titre} ${e.date_debut.slice(11,16) !== '00:00' ? `<span class="heure">${e.date_debut.slice(11,16)}</span>` : ''}</div>`).join('')}
         ${tachesM.map(t => {
           const log = logsMap[t.id];
           const fait = log ? log.fait : false;
@@ -140,7 +128,6 @@ async function chargerLanes() {
 }
 
 function initPage() {
-  renderToggle();
   chargerLanes();
 }
 </script>
