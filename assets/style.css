@@ -391,6 +391,18 @@ td { vertical-align: top; }
 }
 .mois-evt-plus { font-size: 0.6rem; color: var(--ink-soft); margin-top: 2px; }
 
+.encart-travaux {
+  border-left: 4px solid var(--travaux);
+  margin-bottom: 16px;
+}
+.encart-travaux h4 {
+  font-size: 0.95rem;
+  margin-bottom: 10px;
+  color: var(--travaux);
+}
+.encart-travaux .item-ligne { justify-content: flex-start; }
+.encart-travaux .item-ligne span { flex: 1; }
+
 @media (max-width: 640px) {
   .semaine-grid {
     grid-template-columns: 1fr;
