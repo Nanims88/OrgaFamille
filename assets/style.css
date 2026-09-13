@@ -287,6 +287,93 @@ table { border-spacing: 0; }
 th { font-family: 'Baloo 2', sans-serif; font-size: 0.85rem; color: var(--ink-soft); }
 td { vertical-align: top; }
 
+/* ---------- Onglets de vue (Jour / Semaine / Mois) ---------- */
+.vue-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 16px;
+  background: var(--paper);
+  padding: 4px;
+  border-radius: 999px;
+  box-shadow: var(--shadow-1);
+  width: fit-content;
+}
+.vue-tabs button {
+  font-family: 'Nunito', sans-serif;
+  font-weight: 700;
+  font-size: 0.88rem;
+  padding: 8px 18px;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink-soft);
+  cursor: pointer;
+  box-shadow: none;
+}
+.vue-tabs button.actif { background: var(--ink); color: var(--bg); }
+
+/* ---------- Vue Semaine ---------- */
+.semaine-nav, .mois-nav {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.semaine-nav button, .mois-nav button {
+  background: var(--paper);
+  box-shadow: var(--shadow-1);
+  color: var(--ink);
+}
+.semaine-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(150px, 1fr));
+  gap: 10px;
+  overflow-x: auto;
+  padding-bottom: 6px;
+}
+.jour-carte {
+  background: var(--paper);
+  border-radius: var(--radius-md);
+  padding: 12px;
+  box-shadow: var(--shadow-1);
+}
+.jour-carte.vacances { background: #FBEFE6; }
+.jour-carte h4 {
+  font-size: 0.92rem;
+  margin-bottom: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+  text-transform: capitalize;
+}
+.jour-carte .item-ligne { font-size: 0.78rem; padding: 5px 0; }
+.jour-carte .rien { color: var(--ink-soft); font-style: italic; font-size: 0.78rem; }
+
+/* ---------- Vue Mois ---------- */
+.mois-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+}
+.mois-entete-jour {
+  text-align: center;
+  font-family: 'Baloo 2', sans-serif;
+  font-size: 0.78rem;
+  color: var(--ink-soft);
+  padding-bottom: 4px;
+}
+.mois-cellule {
+  background: var(--paper);
+  border-radius: 10px;
+  padding: 6px;
+  min-height: 68px;
+  box-shadow: var(--shadow-1);
+}
+.mois-cellule.hors-mois { opacity: 0.35; }
+.mois-cellule.vacances { background: #FBEFE6; }
+.mois-jour-num { font-weight: 800; font-size: 0.82rem; }
+.mois-puces { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 5px; }
+.puce { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+
 @media (max-width: 640px) {
   header.entete { padding: 16px 16px 10px; }
   nav.modules { padding: 0 12px 14px; }
