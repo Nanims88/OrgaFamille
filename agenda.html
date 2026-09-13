@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Chez nous — Agenda</title>
-<link rel="stylesheet" href="assets/style.css?v=5">
+<link rel="stylesheet" href="assets/style.css?v=7">
 </head>
 <body>
 
@@ -42,8 +42,9 @@
     </div>
 
     <div class="carte" style="margin-top:14px;">
-      <strong>Ajouter une ligne à la semaine type</strong>
+      <strong id="p-titre-form">Ajouter une ligne à la semaine type</strong>
       <form class="mini" id="form-planning">
+        <input type="hidden" id="p-id">
         <select id="p-membre"></select>
         <select id="p-jour">
           <option value="1">Lundi</option><option value="2">Mardi</option><option value="3">Mercredi</option>
@@ -52,7 +53,8 @@
         <input type="text" id="p-lieu" placeholder="Lieu (école, garderie...)" required>
         <input type="time" id="p-debut">
         <input type="time" id="p-fin">
-        <button class="btn" type="submit">Ajouter</button>
+        <button class="btn" type="submit" id="p-submit">Ajouter</button>
+        <button class="btn" type="button" id="p-annuler" style="display:none;background:var(--ink-soft);" onclick="annulerEditionPlanning()">Annuler</button>
       </form>
     </div>
 
@@ -85,8 +87,8 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="assets/config.js?v=5"></script>
-<script src="assets/app.js?v=5"></script>
+<script src="assets/config.js?v=7"></script>
+<script src="assets/app.js?v=7"></script>
 <script>
 document.getElementById('date-jour').textContent = formatDateLongue(dateAujourdhui());
 
@@ -201,6 +203,7 @@ document.getElementById('form-evenement').addEventListener('submit', async (e) =
 async function chargerPlanning() {
   const membres = await getMembres();
   const { data } = await sb.from('planning_recurrent').select('*');
+  _planningCache = data || [];
   const joursOrdre = [1,2,3,4,5,6,0];
   const nomJours = {0:'Dimanche',1:'Lundi',2:'Mardi',3:'Mercredi',4:'Jeudi',5:'Vendredi',6:'Samedi'};
 
@@ -209,23 +212,67 @@ async function chargerPlanning() {
     html += `<tr><td style="padding:6px;">${badgeMembre(m)}</td>`;
     joursOrdre.forEach(j => {
       const lignes = (data || []).filter(p => p.membre_id === m.id && p.jour_semaine === j);
-      html += `<td style="padding:6px;border-left:1px solid var(--border);font-size:0.82rem;">${lignes.map(l => `${l.lieu}<br><span style="color:var(--ink-soft)">${formatHeure(l.heure_debut)}–${formatHeure(l.heure_fin)}</span>`).join('<hr>') || '—'}</td>`;
+      html += `<td style="padding:6px;border-left:1px solid var(--border);font-size:0.82rem;">${lignes.map(l => `
+        <div>
+          ${l.lieu}<br><span style="color:var(--ink-soft)">${formatHeure(l.heure_debut)}–${formatHeure(l.heure_fin)}</span>
+          <div style="margin-top:2px;">
+            <button style="background:none;border:none;cursor:pointer;padding:0;margin-right:6px;" onclick="modifierPlanning('${l.id}')" title="Modifier">✏️</button>
+            <button style="background:none;border:none;cursor:pointer;padding:0;color:var(--ink-soft);" onclick="supprimerPlanning('${l.id}')" title="Supprimer">✕</button>
+          </div>
+        </div>`).join('<hr>') || '—'}</td>`;
     });
     html += '</tr>';
   });
   document.getElementById('table-planning').innerHTML = html;
 }
 
+function modifierPlanning(id) {
+  const p = _planningCache.find(x => x.id === id);
+  if (!p) return;
+  document.getElementById('p-id').value = p.id;
+  document.getElementById('p-membre').value = p.membre_id;
+  document.getElementById('p-jour').value = p.jour_semaine;
+  document.getElementById('p-lieu').value = p.lieu;
+  document.getElementById('p-debut').value = p.heure_debut || '';
+  document.getElementById('p-fin').value = p.heure_fin || '';
+  document.getElementById('p-titre-form').textContent = 'Modifier cette ligne';
+  document.getElementById('p-submit').textContent = 'Enregistrer les modifications';
+  document.getElementById('p-annuler').style.display = 'inline-block';
+  document.getElementById('form-planning').scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+function annulerEditionPlanning() {
+  document.getElementById('form-planning').reset();
+  document.getElementById('p-id').value = '';
+  document.getElementById('p-titre-form').textContent = 'Ajouter une ligne à la semaine type';
+  document.getElementById('p-submit').textContent = 'Ajouter';
+  document.getElementById('p-annuler').style.display = 'none';
+}
+
+async function supprimerPlanning(id) {
+  if (!confirm('Supprimer cette ligne de la semaine type ?')) return;
+  await sb.from('planning_recurrent').delete().eq('id', id);
+  chargerPlanning();
+}
+
+let _planningCache = [];
+
 document.getElementById('form-planning').addEventListener('submit', async (e) => {
   e.preventDefault();
-  await sb.from('planning_recurrent').insert({
+  const id = document.getElementById('p-id').value;
+  const payload = {
     membre_id: document.getElementById('p-membre').value,
     jour_semaine: parseInt(document.getElementById('p-jour').value),
     lieu: document.getElementById('p-lieu').value,
     heure_debut: document.getElementById('p-debut').value || null,
     heure_fin: document.getElementById('p-fin').value || null
-  });
-  e.target.reset();
+  };
+  if (id) {
+    await sb.from('planning_recurrent').update(payload).eq('id', id);
+  } else {
+    await sb.from('planning_recurrent').insert(payload);
+  }
+  annulerEditionPlanning();
   chargerPlanning();
 });
 
