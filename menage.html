@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Chez nous — Ménage</title>
-<link rel="stylesheet" href="assets/style.css?v=3">
+<link rel="stylesheet" href="assets/style.css?v=4">
 </head>
 <body>
 
@@ -43,10 +43,11 @@
       <form class="mini" id="form-tache">
         <input type="text" id="f-libelle" placeholder="Ex: Sortir les poubelles" required>
         <select id="f-membre"></select>
-        <select id="f-frequence" onchange="basculerJours()">
+        <select id="f-frequence" onchange="basculerChamps()">
           <option value="quotidien">Quotidien</option>
           <option value="hebdo">Hebdomadaire</option>
           <option value="mensuel">Mensuel</option>
+          <option value="ponctuel">Ponctuel (travaux)</option>
         </select>
         <span id="f-jours" style="display:none;gap:4px;flex-wrap:wrap;font-size:0.82rem;">
           <label><input type="checkbox" value="1"> Lun</label>
@@ -57,6 +58,7 @@
           <label><input type="checkbox" value="6"> Sam</label>
           <label><input type="checkbox" value="0"> Dim</label>
         </span>
+        <label id="f-date-zone" style="display:none;font-size:0.85rem;color:var(--ink-soft);">Date envisagée : <input type="date" id="f-date"></label>
         <input type="text" id="f-icone" placeholder="Icône (ex: 🧺)" style="width:90px" value="🧹">
         <button class="btn" type="submit">Ajouter</button>
       </form>
@@ -66,14 +68,15 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="assets/config.js?v=3"></script>
-<script src="assets/app.js?v=3"></script>
+<script src="assets/config.js?v=4"></script>
+<script src="assets/app.js?v=4"></script>
 <script>
 document.getElementById('date-jour').textContent = formatDateLongue(dateAujourdhui());
 
-function basculerJours() {
+function basculerChamps() {
   const freq = document.getElementById('f-frequence').value;
   document.getElementById('f-jours').style.display = freq === 'hebdo' ? 'inline-flex' : 'none';
+  document.getElementById('f-date-zone').style.display = freq === 'ponctuel' ? 'inline' : 'none';
 }
 const NOMS_JOURS = ['Dim','Lun','Mar','Mer','Jeu','Ven','Sam'];
 
@@ -91,18 +94,21 @@ async function chargerTaches() {
     const joursTexte = t.frequence === 'hebdo' && t.jours_semaine && t.jours_semaine.length
       ? t.jours_semaine.map(j => NOMS_JOURS[j]).join(', ')
       : '';
+    const dateTexte = t.frequence === 'ponctuel' && t.date_prevue
+      ? new Date(t.date_prevue).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })
+      : '';
     return `
       <div class="carte" style="border-left:4px solid ${m ? m.couleur : 'var(--border)'}">
         <div style="display:flex;justify-content:space-between;align-items:start;">
           <div>
             <div class="icone-lg">${t.icone}</div>
             <strong>${t.libelle}</strong><br>
-            <span style="color:var(--ink-soft);font-size:0.85rem;">${t.frequence}${joursTexte ? ' · ' + joursTexte : ''}</span>
+            <span style="color:var(--ink-soft);font-size:0.85rem;">${t.frequence === 'ponctuel' ? 'Travaux' : t.frequence}${joursTexte ? ' · ' + joursTexte : ''}${dateTexte ? ' · 📅 ' + dateTexte : ''}</span>
           </div>
           ${badgeMembre(m)}
         </div>
         <div style="margin-top:10px;">
-          <button class="btn" style="background:var(--ink-soft)" onclick="supprimerTache('${t.id}')">Supprimer</button>
+          <button class="btn" style="background:var(--ink-soft)" onclick="supprimerTache('${t.id}')">${t.frequence === 'ponctuel' ? '✅ Fait' : 'Supprimer'}</button>
         </div>
       </div>
     `;
@@ -126,11 +132,12 @@ document.getElementById('form-tache').addEventListener('submit', async (e) => {
     membre_id: document.getElementById('f-membre').value,
     frequence,
     jours_semaine: joursSemaine && joursSemaine.length ? joursSemaine : null,
+    date_prevue: frequence === 'ponctuel' ? (document.getElementById('f-date').value || null) : null,
     icone: document.getElementById('f-icone').value || '🧹'
   });
   e.target.reset();
   document.getElementById('f-icone').value = '🧹';
-  basculerJours();
+  basculerChamps();
   chargerTaches();
 });
 

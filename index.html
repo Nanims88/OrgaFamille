@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Chez nous — Aujourd'hui</title>
-<link rel="stylesheet" href="assets/style.css?v=3">
+<link rel="stylesheet" href="assets/style.css?v=4">
 </head>
 <body>
 
@@ -72,8 +72,8 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="assets/config.js?v=3"></script>
-<script src="assets/app.js?v=3"></script>
+<script src="assets/config.js?v=4"></script>
+<script src="assets/app.js?v=4"></script>
 <script>
 document.getElementById('date-jour').textContent = formatDateLongue(dateAujourdhui());
 
@@ -136,7 +136,7 @@ async function chargerLanes() {
     const evtsRemplace = [...evtsM, ...evtsTous].filter(e => e.mode === 'remplace');
     const evtsAjout = evtsM.filter(e => e.mode === 'ajout');
     const planningM = evtsRemplace.length ? [] : (planning.data || []).filter(p => p.membre_id === m.id);
-    const tachesM = (taches.data || []).filter(t => t.membre_id === m.id && (t.frequence !== 'hebdo' || (t.jours_semaine || []).includes(jourSemaine)));
+    const tachesM = (taches.data || []).filter(t => t.membre_id === m.id && (t.frequence === 'quotidien' || t.frequence === 'mensuel' || t.frequence === 'ponctuel' || (t.frequence === 'hebdo' && (t.jours_semaine || []).includes(jourSemaine))));
     const rienDuTout = tachesM.length === 0 && planningM.length === 0 && evtsAjout.length === 0 && evtsRemplace.length === 0;
 
     return `
@@ -186,10 +186,12 @@ async function chargerSemaine() {
   const bornInf = new Date(lundi.getTime() - 60 * 86400000).toISOString().slice(0, 10);
   const bornSup = new Date(lundi.getTime() + 66 * 86400000).toISOString().slice(0, 10);
 
-  const [membres, planning, evenementsRes] = await Promise.all([
+  const [membres, planning, evenementsRes, activitesRes, travauxRes] = await Promise.all([
     getMembres(),
     sb.from('planning_recurrent').select('*'),
-    sb.from('evenements').select('*').gte('date_debut', bornInf + 'T00:00:00').lte('date_debut', bornSup + 'T23:59:59')
+    sb.from('evenements').select('*').gte('date_debut', bornInf + 'T00:00:00').lte('date_debut', bornSup + 'T23:59:59'),
+    sb.from('idees_activites').select('*').eq('statut', 'idee').not('date_prevue', 'is', null),
+    sb.from('taches_menage').select('*').eq('actif', true).eq('frequence', 'ponctuel').not('date_prevue', 'is', null)
   ]);
 
   const grid = document.getElementById('semaine-grid');
@@ -199,6 +201,8 @@ async function chargerSemaine() {
     const evtsJour = (evenementsRes.data || []).filter(e => evenementCouvre(e, ds));
     const evtsTousJour = evtsJour.filter(e => !e.membre_id);
     const estVacances = evtsTousJour.some(e => e.mode === 'remplace');
+    const activitesJour = (activitesRes.data || []).filter(a => a.date_prevue === ds);
+    const travauxJour = (travauxRes.data || []).filter(t => t.date_prevue === ds);
 
     const contenu = membres.map(m => {
       const evtsM = evtsJour.filter(e => e.membre_id === m.id);
@@ -215,7 +219,10 @@ async function chargerSemaine() {
             ${ajout.map(e => `🗓️ ${e.titre}`).join('<br>')}
           </span>
         </div>`;
-    }).join('') + evtsTousJour.map(e => `<div class="item-ligne">👨‍👩‍👧‍👦 ${e.titre}</div>`).join('');
+    }).join('')
+      + evtsTousJour.map(e => `<div class="item-ligne">👨‍👩‍👧‍👦 ${e.titre}</div>`).join('')
+      + activitesJour.map(a => `<div class="item-ligne">🎒 ${a.titre}</div>`).join('')
+      + travauxJour.map(t => `<div class="item-ligne">🧰 ${t.libelle}</div>`).join('');
 
     return `
       <div class="jour-carte ${estVacances ? 'vacances' : ''} ${ds === dateAujourdhui() ? 'aujourdhui' : ''}">
@@ -258,9 +265,11 @@ async function chargerMois() {
   const bornSup = new Date(finGrille.getTime() + 60 * 86400000).toISOString().slice(0, 10);
   const bornInfLarge = new Date(debutGrille.getTime() - 60 * 86400000).toISOString().slice(0, 10);
 
-  const [membres, evenementsRes] = await Promise.all([
+  const [membres, evenementsRes, activitesRes, travauxRes] = await Promise.all([
     getMembres(),
-    sb.from('evenements').select('*').gte('date_debut', bornInfLarge + 'T00:00:00').lte('date_debut', bornSup + 'T23:59:59')
+    sb.from('evenements').select('*').gte('date_debut', bornInfLarge + 'T00:00:00').lte('date_debut', bornSup + 'T23:59:59'),
+    sb.from('idees_activites').select('*').eq('statut', 'idee').not('date_prevue', 'is', null),
+    sb.from('taches_menage').select('*').eq('actif', true).eq('frequence', 'ponctuel').not('date_prevue', 'is', null)
   ]);
   const membresParId = Object.fromEntries(membres.map(m => [m.id, m]));
 
@@ -270,19 +279,26 @@ async function chargerMois() {
   html += jours.map(d => {
     const ds = formatDateLocale(d);
     const evtsJour = (evenementsRes.data || []).filter(e => evenementCouvre(e, ds));
+    const activitesJour = (activitesRes.data || []).filter(a => a.date_prevue === ds);
+    const travauxJour = (travauxRes.data || []).filter(t => t.date_prevue === ds);
     const horsMois = d.getMonth() !== mois;
     const estAujourdhui = ds === dateAujourdhui();
     const estVacances = evtsJour.some(e => !e.membre_id && e.mode === 'remplace');
     const MAX_AFFICHES = 3;
-    const chips = evtsJour.slice(0, MAX_AFFICHES).map(e => {
+
+    const chipsEvt = evtsJour.map(e => {
       const m = membresParId[e.membre_id];
       return `<span class="mois-evt" style="background:${m ? m.couleur : 'var(--tous)'}" title="${e.titre}">${e.titre}</span>`;
-    }).join('');
-    const reste = evtsJour.length - MAX_AFFICHES;
+    });
+    const chipsAct = activitesJour.map(a => `<span class="mois-evt" style="background:var(--activite)" title="${a.titre}">🎒 ${a.titre}</span>`);
+    const chipsTrav = travauxJour.map(t => `<span class="mois-evt" style="background:var(--travaux)" title="${t.libelle}">🧰 ${t.libelle}</span>`);
+    const toutesLesChips = [...chipsEvt, ...chipsAct, ...chipsTrav];
+    const reste = toutesLesChips.length - MAX_AFFICHES;
+
     return `
       <div class="mois-cellule ${horsMois ? 'hors-mois' : ''} ${estVacances ? 'vacances' : ''} ${estAujourdhui ? 'aujourdhui' : ''}">
         <div class="mois-jour-num">${d.getDate()}</div>
-        ${chips}
+        ${toutesLesChips.slice(0, MAX_AFFICHES).join('')}
         ${reste > 0 ? `<div class="mois-evt-plus">+${reste}</div>` : ''}
       </div>
     `;
