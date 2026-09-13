@@ -62,6 +62,13 @@ function formatHeure(t) {
   return t ? t.slice(0, 5) : '';
 }
 
+// Un événement couvre-t-il la date donnée (comparaison en jours, pas en heures) ?
+function evenementCouvre(evt, dateStr) {
+  const debut = evt.date_debut.slice(0, 10);
+  const fin = evt.date_fin ? evt.date_fin.slice(0, 10) : debut;
+  return dateStr >= debut && dateStr <= fin;
+}
+
 // ---------- Navigation ----------
 function marquerNavActive() {
   const page = location.pathname.split('/').pop() || 'index.html';
