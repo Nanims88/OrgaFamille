@@ -74,7 +74,7 @@ async function chargerTaches() {
   document.getElementById('liste-taches').innerHTML = (taches.data || []).map(t => {
     const m = membresParId[t.membre_id];
     return `
-      <div class="carte" style="border-top:5px solid ${m ? m.couleur : 'var(--border)'}">
+      <div class="carte" style="border-left:4px solid ${m ? m.couleur : 'var(--border)'}">
         <div style="display:flex;justify-content:space-between;align-items:start;">
           <div>
             <div class="icone-lg">${t.icone}</div>

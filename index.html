@@ -122,7 +122,7 @@ async function chargerLanes() {
 
     return `
       <div class="lane" style="--m-color:${m.couleur}">
-        <h3>${m.icone} ${m.nom}</h3>
+        <h3>${avatarMembre(m)} ${m.nom}</h3>
         ${planningM.map(p => `<div class="item-ligne">📍 ${p.lieu} <span class="heure">${formatHeure(p.heure_debut)}–${formatHeure(p.heure_fin)}</span></div>`).join('')}
         ${evtsM.map(e => `<div class="item-ligne">🗓️ ${e.titre} <span class="heure">${formatHeure(e.date_debut.slice(11,16))}</span></div>`).join('')}
         ${tachesM.map(t => {

@@ -64,9 +64,9 @@ document.getElementById('date-jour').textContent = formatDateLongue(dateAujourdh
 async function chargerMembres() {
   const { data } = await sb.from('membres').select('*').order('ordre');
   document.getElementById('liste-membres').innerHTML = (data || []).map(m => `
-    <div class="carte" style="border-top:5px solid ${m.couleur}">
-      <div class="icone-lg">${m.icone}</div>
-      <strong>${m.nom}</strong><br>
+    <div class="carte">
+      <span class="avatar" style="--m-color:${m.couleur};width:48px;height:48px;font-size:1.4rem;">${m.icone}</span>
+      <strong style="display:block;margin-top:10px;">${m.nom}</strong>
       <span style="color:var(--ink-soft);font-size:0.85rem;">${m.type}</span>
       <div style="margin-top:8px;">
         <button class="btn" style="background:var(--ink-soft)" onclick="supprimerMembre('${m.id}')">Retirer</button>

@@ -113,7 +113,7 @@ async function chargerEvenements() {
     const depose = membresParId[e.qui_depose];
     const recupere = membresParId[e.qui_recupere];
     return `
-      <div class="carte" style="border-top:5px solid ${m ? m.couleur : 'var(--tous)'}">
+      <div class="carte" style="border-left:4px solid ${m ? m.couleur : 'var(--tous)'}">
         <strong>${e.titre}</strong><br>
         <span style="color:var(--ink-soft);font-size:0.9rem;">${d.toLocaleDateString('fr-FR', {weekday:'long', day:'numeric', month:'short'})} ${e.date_debut.slice(11,16) !== '00:00' ? '· ' + e.date_debut.slice(11,16) : ''}</span>
         ${e.lieu ? '<br>📍 ' + e.lieu : ''}
