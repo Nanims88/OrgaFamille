@@ -55,6 +55,7 @@
           <option value="hiver">Hiver</option>
         </select>
         <input type="text" id="a-lien" placeholder="Lien (optionnel)">
+        <label style="font-size:0.85rem;color:var(--ink-soft);">Date envisagée : <input type="date" id="a-date"></label>
         <button class="btn" type="submit">Ajouter</button>
       </form>
     </div>
@@ -78,10 +79,17 @@ function changerFiltre(f) {
 
 async function chargerActivites() {
   const { data } = await sb.from('idees_activites').select('*').eq('statut', filtreActuel).order('cree_le', { ascending: false });
-  document.getElementById('liste-activites').innerHTML = (data || []).map(a => `
+  const trie = (data || []).slice().sort((a, b) => {
+    if (a.date_prevue && b.date_prevue) return a.date_prevue.localeCompare(b.date_prevue);
+    if (a.date_prevue) return -1;
+    if (b.date_prevue) return 1;
+    return 0;
+  });
+  document.getElementById('liste-activites').innerHTML = trie.map(a => `
     <div class="carte">
       <strong>${a.titre}</strong>
       ${a.categorie ? `<br><span style="color:var(--ink-soft);font-size:0.85rem;">${a.categorie}${a.saison ? ' · ' + a.saison : ''}</span>` : ''}
+      ${a.date_prevue ? `<br><span style="color:var(--maman);font-weight:700;font-size:0.85rem;">📅 ${new Date(a.date_prevue).toLocaleDateString('fr-FR', {weekday:'long', day:'numeric', month:'long'})}</span>` : ''}
       ${a.description ? `<p style="font-size:0.9rem;margin:8px 0;">${a.description}</p>` : ''}
       ${a.lien ? `<a href="${a.lien}" target="_blank" style="font-size:0.85rem;">🔗 Lien</a><br>` : ''}
       <div style="margin-top:8px;display:flex;gap:6px;">
@@ -108,6 +116,7 @@ document.getElementById('form-activite').addEventListener('submit', async (e) =>
     titre: document.getElementById('a-titre').value,
     categorie: document.getElementById('a-categorie').value || null,
     saison: document.getElementById('a-saison').value || null,
+    date_prevue: document.getElementById('a-date').value || null,
     lien: document.getElementById('a-lien').value || null
   });
   e.target.reset();

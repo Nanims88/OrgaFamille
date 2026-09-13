@@ -83,10 +83,15 @@ async function chargerInstances() {
         ${itemsInst.map(it => `
           <div class="item-ligne ${it.coche ? 'fait' : ''}">
             <input type="checkbox" ${it.coche ? 'checked' : ''} onchange="toggleItemInstance('${it.id}', ${it.coche})">
-            ${it.libelle}
+            <span style="flex:1;">${it.libelle}</span>
+            <button class="btn" style="background:transparent;color:var(--ink-soft);box-shadow:none;padding:2px 8px;" onclick="supprimerItemInstance('${it.id}')">✕</button>
           </div>
         `).join('')}
-        <button class="btn" style="background:var(--ink-soft);margin-top:8px;" onclick="supprimerInstance('${inst.id}')">Supprimer</button>
+        <form class="mini" onsubmit="return ajouterItemInstance(event, '${inst.id}')">
+          <input type="text" placeholder="Ajouter un point" style="flex:1;">
+          <button class="btn" type="submit">+</button>
+        </form>
+        <button class="btn" style="background:var(--ink-soft);margin-top:8px;" onclick="supprimerInstance('${inst.id}')">Supprimer la checklist</button>
       </div>
     `;
   }).join('') || '<div class="vide">Aucune checklist en cours.</div>';
@@ -95,6 +100,18 @@ async function chargerInstances() {
 async function toggleItemInstance(id, coche) {
   await sb.from('checklists_instance_items').update({ coche: !coche }).eq('id', id);
   chargerInstances();
+}
+async function supprimerItemInstance(id) {
+  await sb.from('checklists_instance_items').delete().eq('id', id);
+  chargerInstances();
+}
+async function ajouterItemInstance(e, instanceId) {
+  e.preventDefault();
+  const input = e.target.querySelector('input');
+  if (!input.value) return false;
+  await sb.from('checklists_instance_items').insert({ instance_id: instanceId, libelle: input.value, ordre: 99 });
+  chargerInstances();
+  return false;
 }
 async function supprimerInstance(id) {
   if (!confirm('Supprimer cette checklist ?')) return;
@@ -114,7 +131,10 @@ async function chargerModeles() {
       <div class="carte">
         <strong>${m.nom}</strong>
         <ul style="padding-left:18px;font-size:0.9rem;">
-          ${itemsM.map(it => `<li>${it.libelle}</li>`).join('')}
+          ${itemsM.map(it => `<li style="display:flex;align-items:center;gap:6px;justify-content:space-between;">
+            <span>${it.libelle}</span>
+            <button class="btn" style="background:transparent;color:var(--ink-soft);box-shadow:none;padding:2px 8px;" onclick="supprimerItemModele('${it.id}')">✕</button>
+          </li>`).join('')}
         </ul>
         <form class="mini" onsubmit="return ajouterItemModele(event, '${m.id}')">
           <input type="text" placeholder="Ajouter un point" style="flex:1;">
@@ -132,6 +152,10 @@ async function ajouterItemModele(e, modeleId) {
   await sb.from('checklists_modele_items').insert({ modele_id: modeleId, libelle: input.value, ordre: 99 });
   chargerModeles();
   return false;
+}
+async function supprimerItemModele(id) {
+  await sb.from('checklists_modele_items').delete().eq('id', id);
+  chargerModeles();
 }
 
 document.getElementById('form-modele').addEventListener('submit', async (e) => {
