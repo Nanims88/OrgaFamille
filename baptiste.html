@@ -57,10 +57,18 @@ document.getElementById('date-jour').textContent = formatDateLongue(dateAujourdh
 
 const POINTS_PAR_TACHE = 10;
 let _baptiste = null;
+let _tachesBaptiste = [];
 
 async function trouverBaptiste() {
   const membres = await getMembres();
   return membres.find(m => m.nom.trim().toLowerCase() === 'baptiste') || null;
+}
+
+function tachesPourJour(jourSemaine) {
+  return _tachesBaptiste.filter(t =>
+    t.frequence === 'quotidien' || t.frequence === 'mensuel' || t.frequence === 'ponctuel' ||
+    (t.frequence === 'hebdo' && (t.jours_semaine || []).includes(jourSemaine))
+  );
 }
 
 async function chargerScores() {
@@ -68,18 +76,37 @@ async function chargerScores() {
   const auj = dateAujourdhui();
   const lundi = formatDateLocale(lundiDeLaSemaine(new Date()));
   const dimanche = formatDateLocale(new Date(lundiDeLaSemaine(new Date()).getTime() + 6 * 86400000));
-  const premierDuMois = formatDateLocale(new Date(new Date().getFullYear(), new Date().getMonth(), 1));
-  const dernierDuMois = formatDateLocale(new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0));
+  const premierDuMois = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+  const dernierDuMois = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0);
 
   const [jourRes, semaineRes, moisRes] = await Promise.all([
     sb.from('taches_menage_log').select('id').eq('fait_par', _baptiste.id).eq('fait', true).eq('date', auj),
     sb.from('taches_menage_log').select('id').eq('fait_par', _baptiste.id).eq('fait', true).gte('date', lundi).lte('date', dimanche),
-    sb.from('taches_menage_log').select('id').eq('fait_par', _baptiste.id).eq('fait', true).gte('date', premierDuMois).lte('date', dernierDuMois)
+    sb.from('taches_menage_log').select('id').eq('fait_par', _baptiste.id).eq('fait', true).gte('date', formatDateLocale(premierDuMois)).lte('date', formatDateLocale(dernierDuMois))
   ]);
 
-  document.getElementById('score-jour').textContent = ((jourRes.data || []).length * POINTS_PAR_TACHE) + ' ⭐';
-  document.getElementById('score-semaine').textContent = ((semaineRes.data || []).length * POINTS_PAR_TACHE) + ' ⭐';
-  document.getElementById('score-mois').textContent = ((moisRes.data || []).length * POINTS_PAR_TACHE) + ' ⭐';
+  // Totaux possibles (nombre de tâches applicables x points), à partir des tâches actuellement actives
+  const maxJour = tachesPourJour(new Date().getDay()).length * POINTS_PAR_TACHE;
+
+  let maxSemaine = 0;
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(lundiDeLaSemaine(new Date()));
+    d.setDate(d.getDate() + i);
+    maxSemaine += tachesPourJour(d.getDay()).length * POINTS_PAR_TACHE;
+  }
+
+  let maxMois = 0;
+  for (let d = new Date(premierDuMois); d <= dernierDuMois; d.setDate(d.getDate() + 1)) {
+    maxMois += tachesPourJour(d.getDay()).length * POINTS_PAR_TACHE;
+  }
+
+  const obtenuJour = (jourRes.data || []).length * POINTS_PAR_TACHE;
+  const obtenuSemaine = (semaineRes.data || []).length * POINTS_PAR_TACHE;
+  const obtenuMois = (moisRes.data || []).length * POINTS_PAR_TACHE;
+
+  document.getElementById('score-jour').textContent = `${obtenuJour}/${maxJour} ⭐`;
+  document.getElementById('score-semaine').textContent = `${obtenuSemaine}/${maxSemaine} ⭐`;
+  document.getElementById('score-mois').textContent = `${obtenuMois}/${maxMois} ⭐`;
 }
 
 async function chargerTachesEnfant() {
@@ -95,14 +122,12 @@ async function chargerTachesEnfant() {
     sb.from('taches_menage').select('*').eq('actif', true).eq('membre_id', _baptiste.id),
     sb.from('taches_menage_log').select('*').eq('date', auj)
   ]);
+  _tachesBaptiste = tachesRes.data || [];
 
   const logsMap = {};
   (logsRes.data || []).forEach(l => logsMap[l.tache_id] = l);
 
-  const tachesDuJour = (tachesRes.data || []).filter(t =>
-    t.frequence === 'quotidien' || t.frequence === 'mensuel' || t.frequence === 'ponctuel' ||
-    (t.frequence === 'hebdo' && (t.jours_semaine || []).includes(jourSemaine))
-  );
+  const tachesDuJour = tachesPourJour(jourSemaine);
 
   const zone = document.getElementById('liste-taches-enfant');
   if (!tachesDuJour.length) {
@@ -148,7 +173,7 @@ async function basculerTacheEnfant(tacheId, faitActuel, frequence) {
     if (frequence === 'ponctuel') {
       await sb.from('taches_menage').update({ actif: false }).eq('id', tacheId);
       carte.classList.add('disparait');
-      setTimeout(() => chargerTachesEnfant(), 400);
+      setTimeout(() => chargerTachesEnfant().then(chargerScores), 400);
     }
   } else {
     carte.classList.remove('coche');
@@ -157,8 +182,8 @@ async function basculerTacheEnfant(tacheId, faitActuel, frequence) {
   chargerScores();
 }
 
-function initPage() {
-  chargerTachesEnfant();
+async function initPage() {
+  await chargerTachesEnfant();
   chargerScores();
 }
 </script>
