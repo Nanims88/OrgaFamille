@@ -83,6 +83,15 @@ function marquerNavActive() {
   });
 }
 
+function lundiDeLaSemaine(date) {
+  const d = new Date(date);
+  const jour = d.getDay(); // 0=dimanche
+  const decalage = jour === 0 ? -6 : 1 - jour;
+  d.setDate(d.getDate() + decalage);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   marquerNavActive();
   demarrerPortail();
