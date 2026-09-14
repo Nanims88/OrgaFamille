@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>L'espace de Baptiste</title>
+<link rel="stylesheet" href="assets/style.css?v=7">
+</head>
+<body class="enfant">
+
+<div id="gate">
+  <div class="carte">
+    <h2 class="titre">🏡 Chez nous</h2>
+    <p>Mot de passe famille</p>
+    <form id="gate-form">
+      <input id="gate-input" type="password" placeholder="•••••••" autofocus>
+      <button type="submit">Entrer</button>
+    </form>
+    <p class="erreur" id="gate-erreur"></p>
+  </div>
+</div>
+
+<div id="app">
+  <header class="entete">
+    <h1 class="titre">👋 Salut Baptiste !</h1>
+    <div class="date-du-jour" id="date-jour"></div>
+    <a class="retour" href="index.html">← Retour à l'appli</a>
+  </header>
+  <main>
+
+    <div class="scores-enfant">
+      <div class="score-pastille" style="background:var(--maman);">
+        <span class="valeur" id="score-jour">0 ⭐</span>
+        <span class="label">Aujourd'hui</span>
+      </div>
+      <div class="score-pastille" style="background:var(--baptiste);">
+        <span class="valeur" id="score-semaine">0 ⭐</span>
+        <span class="label">Cette semaine</span>
+      </div>
+      <div class="score-pastille" style="background:var(--papa);">
+        <span class="valeur" id="score-mois">0 ⭐</span>
+        <span class="label">Ce mois</span>
+      </div>
+    </div>
+
+    <div class="taches-enfant" id="liste-taches-enfant"></div>
+
+  </main>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="assets/config.js?v=7"></script>
+<script src="assets/app.js?v=7"></script>
+<script>
+document.getElementById('date-jour').textContent = formatDateLongue(dateAujourdhui());
+
+const POINTS_PAR_TACHE = 10;
+let _baptiste = null;
+
+async function trouverBaptiste() {
+  const membres = await getMembres();
+  return membres.find(m => m.nom.trim().toLowerCase() === 'baptiste') || null;
+}
+
+async function chargerScores() {
+  if (!_baptiste) return;
+  const auj = dateAujourdhui();
+  const lundi = formatDateLocale(lundiDeLaSemaine(new Date()));
+  const dimanche = formatDateLocale(new Date(lundiDeLaSemaine(new Date()).getTime() + 6 * 86400000));
+  const premierDuMois = formatDateLocale(new Date(new Date().getFullYear(), new Date().getMonth(), 1));
+  const dernierDuMois = formatDateLocale(new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0));
+
+  const [jourRes, semaineRes, moisRes] = await Promise.all([
+    sb.from('taches_menage_log').select('id').eq('fait_par', _baptiste.id).eq('fait', true).eq('date', auj),
+    sb.from('taches_menage_log').select('id').eq('fait_par', _baptiste.id).eq('fait', true).gte('date', lundi).lte('date', dimanche),
+    sb.from('taches_menage_log').select('id').eq('fait_par', _baptiste.id).eq('fait', true).gte('date', premierDuMois).lte('date', dernierDuMois)
+  ]);
+
+  document.getElementById('score-jour').textContent = ((jourRes.data || []).length * POINTS_PAR_TACHE) + ' ⭐';
+  document.getElementById('score-semaine').textContent = ((semaineRes.data || []).length * POINTS_PAR_TACHE) + ' ⭐';
+  document.getElementById('score-mois').textContent = ((moisRes.data || []).length * POINTS_PAR_TACHE) + ' ⭐';
+}
+
+async function chargerTachesEnfant() {
+  _baptiste = await trouverBaptiste();
+  if (!_baptiste) {
+    document.getElementById('liste-taches-enfant').innerHTML = '<div class="vide">Aucun membre "Baptiste" trouvé — vérifie le prénom dans Réglages.</div>';
+    return;
+  }
+  const jourSemaine = new Date().getDay();
+  const auj = dateAujourdhui();
+
+  const [tachesRes, logsRes] = await Promise.all([
+    sb.from('taches_menage').select('*').eq('actif', true).eq('membre_id', _baptiste.id),
+    sb.from('taches_menage_log').select('*').eq('date', auj)
+  ]);
+
+  const logsMap = {};
+  (logsRes.data || []).forEach(l => logsMap[l.tache_id] = l);
+
+  const tachesDuJour = (tachesRes.data || []).filter(t =>
+    t.frequence === 'quotidien' || t.frequence === 'mensuel' || t.frequence === 'ponctuel' ||
+    (t.frequence === 'hebdo' && (t.jours_semaine || []).includes(jourSemaine))
+  );
+
+  const zone = document.getElementById('liste-taches-enfant');
+  if (!tachesDuJour.length) {
+    zone.innerHTML = '<div class="vide">Rien à faire aujourd\'hui, bravo Baptiste ! 🎉</div>';
+    return;
+  }
+
+  zone.innerHTML = tachesDuJour.map(t => {
+    const fait = logsMap[t.id] ? logsMap[t.id].fait : false;
+    return `
+      <div class="tache-enfant ${fait ? 'coche' : ''}" id="tache-${t.id}" onclick="basculerTacheEnfant('${t.id}', ${fait}, '${t.frequence}')">
+        <span class="emoji-tache">${t.icone || '🧹'}</span>
+        <span class="libelle-tache">${t.libelle}</span>
+        <span class="rond-coche">${fait ? '✓' : ''}</span>
+      </div>
+    `;
+  }).join('');
+}
+
+async function basculerTacheEnfant(tacheId, faitActuel, frequence) {
+  const nouvelEtat = !faitActuel;
+  const carte = document.getElementById('tache-' + tacheId);
+
+  await sb.from('taches_menage_log').upsert({
+    tache_id: tacheId,
+    date: dateAujourdhui(),
+    fait: nouvelEtat,
+    fait_par: _baptiste.id,
+    fait_le: nouvelEtat ? new Date().toISOString() : null
+  }, { onConflict: 'tache_id,date' });
+
+  if (nouvelEtat) {
+    carte.classList.add('coche');
+    carte.querySelector('.rond-coche').textContent = '✓';
+    const plus = document.createElement('span');
+    plus.className = 'plus-points';
+    plus.textContent = '+' + POINTS_PAR_TACHE;
+    carte.appendChild(plus);
+    setTimeout(() => plus.remove(), 1000);
+    if (window.confetti) {
+      confetti({ particleCount: 60, spread: 70, origin: { y: 0.7 }, colors: ['#D97757', '#E3A93C', '#6E9F5C', '#3E7A8C'] });
+    }
+    if (frequence === 'ponctuel') {
+      await sb.from('taches_menage').update({ actif: false }).eq('id', tacheId);
+      carte.classList.add('disparait');
+      setTimeout(() => chargerTachesEnfant(), 400);
+    }
+  } else {
+    carte.classList.remove('coche');
+    carte.querySelector('.rond-coche').textContent = '';
+  }
+  chargerScores();
+}
+
+function initPage() {
+  chargerTachesEnfant();
+  chargerScores();
+}
+</script>
+</body>
+</html>
