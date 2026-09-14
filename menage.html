@@ -40,6 +40,11 @@
     <p style="color:var(--ink-soft);font-size:0.9rem;margin-top:-6px;">Tâches quotidiennes, hebdomadaires, travaux ponctuels ou simples choses à ne pas oublier au fil du quotidien.</p>
     <div class="grille-cartes" id="liste-taches"></div>
 
+    <p style="margin-top:20px;">
+      <button class="btn" style="background:var(--paper);color:var(--ink);box-shadow:var(--shadow-1);" onclick="basculerArchives()" id="btn-archives">🗄️ Voir les tâches terminées / supprimées</button>
+    </p>
+    <div class="grille-cartes" id="liste-archives" style="display:none;margin-top:12px;"></div>
+
     <h2 class="section-titre" id="f-titre-section">Ajouter une tâche</h2>
     <div class="carte">
       <form class="mini" id="form-tache">
@@ -154,6 +159,45 @@ function annulerEditionTache() {
 async function supprimerTache(id) {
   if (!confirm('Supprimer cette tâche ?')) return;
   await sb.from('taches_menage').update({ actif: false }).eq('id', id);
+  chargerTaches();
+}
+
+let _archivesOuvertes = false;
+async function basculerArchives() {
+  _archivesOuvertes = !_archivesOuvertes;
+  const zone = document.getElementById('liste-archives');
+  zone.style.display = _archivesOuvertes ? 'grid' : 'none';
+  document.getElementById('btn-archives').textContent = _archivesOuvertes ? '🗄️ Masquer les tâches terminées / supprimées' : '🗄️ Voir les tâches terminées / supprimées';
+  if (_archivesOuvertes) chargerArchives();
+}
+
+async function chargerArchives() {
+  const [membres, taches] = await Promise.all([
+    getMembres(),
+    sb.from('taches_menage').select('*').eq('actif', false).order('libelle')
+  ]);
+  const membresParId = Object.fromEntries(membres.map(m => [m.id, m]));
+  document.getElementById('liste-archives').innerHTML = (taches.data || []).map(t => `
+    <div class="carte" style="border-left:4px solid var(--border);opacity:0.8;">
+      <div style="display:flex;justify-content:space-between;align-items:start;">
+        <div>
+          <div class="icone-lg">${t.icone}</div>
+          <strong style="text-decoration:line-through;">${t.libelle}</strong><br>
+          <span style="color:var(--ink-soft);font-size:0.85rem;">${t.frequence === 'ponctuel' ? 'Travaux / à penser' : t.frequence}</span>
+        </div>
+        ${badgeMembre(membresParId[t.membre_id])}
+      </div>
+      <div style="margin-top:10px;">
+        <button class="btn" onclick="restaurerTache('${t.id}')">↩️ Restaurer</button>
+      </div>
+    </div>
+  `).join('') || '<div class="vide">Aucune tâche terminée ou supprimée pour l\'instant.</div>';
+}
+
+async function restaurerTache(id) {
+  await sb.from('taches_menage').update({ actif: true }).eq('id', id);
+  await sb.from('taches_menage_log').delete().eq('tache_id', id);
+  chargerArchives();
   chargerTaches();
 }
 
