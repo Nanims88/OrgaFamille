@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Chez nous — Ménage</title>
-<link rel="stylesheet" href="assets/style.css?v=5">
+<title>Chez nous — Tâches</title>
+<link rel="stylesheet" href="assets/style.css?v=7">
 </head>
 <body>
 
@@ -22,12 +22,12 @@
 
 <div id="app">
   <header class="entete">
-    <h1 class="titre">🧹 Ménage</h1>
+    <h1 class="titre">🧹 Tâches</h1>
     <div class="date-du-jour" id="date-jour"></div>
   </header>
   <nav class="modules">
     <a href="index.html">🏠 Aujourd'hui</a>
-    <a href="menage.html">🧹 Ménage</a>
+    <a href="menage.html">🧹 Tâches</a>
     <a href="agenda.html">📅 Agenda</a>
     <a href="activites.html">🎒 Activités</a>
     <a href="checklists.html">✅ Checklists</a>
@@ -36,18 +36,20 @@
   <main>
 
     <h2 class="section-titre">Toutes les tâches</h2>
+    <p style="color:var(--ink-soft);font-size:0.9rem;margin-top:-6px;">Tâches quotidiennes, hebdomadaires, travaux ponctuels ou simples choses à ne pas oublier au fil du quotidien.</p>
     <div class="grille-cartes" id="liste-taches"></div>
 
-    <h2 class="section-titre">Ajouter une tâche</h2>
+    <h2 class="section-titre" id="f-titre-section">Ajouter une tâche</h2>
     <div class="carte">
       <form class="mini" id="form-tache">
+        <input type="hidden" id="f-id">
         <input type="text" id="f-libelle" placeholder="Ex: Sortir les poubelles" required>
         <select id="f-membre"></select>
         <select id="f-frequence" onchange="basculerChamps()">
           <option value="quotidien">Quotidien</option>
           <option value="hebdo">Hebdomadaire</option>
           <option value="mensuel">Mensuel</option>
-          <option value="ponctuel">Ponctuel (travaux)</option>
+          <option value="ponctuel">Ponctuel (travaux / à penser)</option>
         </select>
         <span id="f-jours" style="display:none;gap:4px;flex-wrap:wrap;font-size:0.82rem;">
           <label><input type="checkbox" value="1"> Lun</label>
@@ -60,7 +62,8 @@
         </span>
         <label id="f-date-zone" style="display:none;font-size:0.85rem;color:var(--ink-soft);">Date envisagée : <input type="date" id="f-date"></label>
         <input type="text" id="f-icone" placeholder="Icône (ex: 🧺)" style="width:90px" value="🧹">
-        <button class="btn" type="submit">Ajouter</button>
+        <button class="btn" type="submit" id="f-submit">Ajouter</button>
+        <button class="btn" type="button" id="f-annuler" style="display:none;background:var(--ink-soft);" onclick="annulerEditionTache()">Annuler</button>
       </form>
     </div>
 
@@ -68,8 +71,8 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="assets/config.js?v=5"></script>
-<script src="assets/app.js?v=5"></script>
+<script src="assets/config.js?v=7"></script>
+<script src="assets/app.js?v=7"></script>
 <script>
 document.getElementById('date-jour').textContent = formatDateLongue(dateAujourdhui());
 
@@ -79,6 +82,7 @@ function basculerChamps() {
   document.getElementById('f-date-zone').style.display = freq === 'ponctuel' ? 'inline' : 'none';
 }
 const NOMS_JOURS = ['Dim','Lun','Mar','Mer','Jeu','Ven','Sam'];
+let _tachesCache = [];
 
 async function chargerTaches() {
   const [membres, taches] = await Promise.all([
@@ -86,10 +90,11 @@ async function chargerTaches() {
     sb.from('taches_menage').select('*').eq('actif', true).order('libelle')
   ]);
   const membresParId = Object.fromEntries(membres.map(m => [m.id, m]));
+  _tachesCache = taches.data || [];
 
   document.getElementById('f-membre').innerHTML = membres.map(m => `<option value="${m.id}">${m.icone} ${m.nom}</option>`).join('');
 
-  document.getElementById('liste-taches').innerHTML = (taches.data || []).map(t => {
+  document.getElementById('liste-taches').innerHTML = _tachesCache.map(t => {
     const m = membresParId[t.membre_id];
     const joursTexte = t.frequence === 'hebdo' && t.jours_semaine && t.jours_semaine.length
       ? t.jours_semaine.map(j => NOMS_JOURS[j]).join(', ')
@@ -103,16 +108,46 @@ async function chargerTaches() {
           <div>
             <div class="icone-lg">${t.icone}</div>
             <strong>${t.libelle}</strong><br>
-            <span style="color:var(--ink-soft);font-size:0.85rem;">${t.frequence === 'ponctuel' ? 'Travaux' : t.frequence}${joursTexte ? ' · ' + joursTexte : ''}${dateTexte ? ' · 📅 ' + dateTexte : ''}</span>
+            <span style="color:var(--ink-soft);font-size:0.85rem;">${t.frequence === 'ponctuel' ? 'Travaux / à penser' : t.frequence}${joursTexte ? ' · ' + joursTexte : ''}${dateTexte ? ' · 📅 ' + dateTexte : ''}</span>
           </div>
           ${badgeMembre(m)}
         </div>
-        <div style="margin-top:10px;">
+        <div style="margin-top:10px;display:flex;gap:6px;">
+          <button class="btn" style="background:var(--paper);color:var(--ink);box-shadow:var(--shadow-1);" onclick="modifierTache('${t.id}')">✏️ Modifier</button>
           <button class="btn" style="background:var(--ink-soft)" onclick="supprimerTache('${t.id}')">${t.frequence === 'ponctuel' ? '✅ Fait' : 'Supprimer'}</button>
         </div>
       </div>
     `;
   }).join('') || '<div class="vide">Aucune tâche pour l\'instant.</div>';
+}
+
+function modifierTache(id) {
+  const t = _tachesCache.find(x => x.id === id);
+  if (!t) return;
+  document.getElementById('f-id').value = t.id;
+  document.getElementById('f-libelle').value = t.libelle;
+  document.getElementById('f-membre').value = t.membre_id || '';
+  document.getElementById('f-frequence').value = t.frequence;
+  document.getElementById('f-icone').value = t.icone || '🧹';
+  basculerChamps();
+  document.querySelectorAll('#f-jours input').forEach(c => {
+    c.checked = !!(t.jours_semaine && t.jours_semaine.includes(parseInt(c.value)));
+  });
+  document.getElementById('f-date').value = t.date_prevue || '';
+  document.getElementById('f-titre-section').textContent = 'Modifier cette tâche';
+  document.getElementById('f-submit').textContent = 'Enregistrer les modifications';
+  document.getElementById('f-annuler').style.display = 'inline-block';
+  document.getElementById('form-tache').scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+function annulerEditionTache() {
+  document.getElementById('form-tache').reset();
+  document.getElementById('f-id').value = '';
+  document.getElementById('f-icone').value = '🧹';
+  basculerChamps();
+  document.getElementById('f-titre-section').textContent = 'Ajouter une tâche';
+  document.getElementById('f-submit').textContent = 'Ajouter';
+  document.getElementById('f-annuler').style.display = 'none';
 }
 
 async function supprimerTache(id) {
@@ -123,21 +158,25 @@ async function supprimerTache(id) {
 
 document.getElementById('form-tache').addEventListener('submit', async (e) => {
   e.preventDefault();
+  const id = document.getElementById('f-id').value;
   const frequence = document.getElementById('f-frequence').value;
   const joursSemaine = frequence === 'hebdo'
     ? [...document.querySelectorAll('#f-jours input:checked')].map(c => parseInt(c.value))
     : null;
-  await sb.from('taches_menage').insert({
+  const payload = {
     libelle: document.getElementById('f-libelle').value,
     membre_id: document.getElementById('f-membre').value,
     frequence,
     jours_semaine: joursSemaine && joursSemaine.length ? joursSemaine : null,
     date_prevue: frequence === 'ponctuel' ? (document.getElementById('f-date').value || null) : null,
     icone: document.getElementById('f-icone').value || '🧹'
-  });
-  e.target.reset();
-  document.getElementById('f-icone').value = '🧹';
-  basculerChamps();
+  };
+  if (id) {
+    await sb.from('taches_menage').update(payload).eq('id', id);
+  } else {
+    await sb.from('taches_menage').insert(payload);
+  }
+  annulerEditionTache();
   chargerTaches();
 });
 
