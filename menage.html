@@ -118,9 +118,10 @@ async function chargerTaches() {
           </div>
           ${badgeMembre(m)}
         </div>
-        <div style="margin-top:10px;display:flex;gap:6px;">
+        <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap;">
           <button class="btn" style="background:var(--paper);color:var(--ink);box-shadow:var(--shadow-1);" onclick="modifierTache('${t.id}')">✏️ Modifier</button>
-          <button class="btn" style="background:var(--ink-soft)" onclick="supprimerTache('${t.id}')">${t.frequence === 'ponctuel' ? '✅ Fait' : 'Supprimer'}</button>
+          ${t.frequence === 'ponctuel' ? `<button class="btn" style="background:var(--louis)" onclick="terminerTache('${t.id}')">✅ Terminé</button>` : ''}
+          <button class="btn" style="background:var(--ink-soft)" onclick="supprimerTache('${t.id}')">🗑️ Supprimer</button>
         </div>
       </div>
     `;
@@ -156,9 +157,14 @@ function annulerEditionTache() {
   document.getElementById('f-annuler').style.display = 'none';
 }
 
+async function terminerTache(id) {
+  await sb.from('taches_menage').update({ actif: false, statut_archive: 'termine' }).eq('id', id);
+  chargerTaches();
+}
+
 async function supprimerTache(id) {
-  if (!confirm('Supprimer cette tâche ?')) return;
-  await sb.from('taches_menage').update({ actif: false }).eq('id', id);
+  if (!confirm('Supprimer définitivement cette tâche ?')) return;
+  await sb.from('taches_menage').update({ actif: false, statut_archive: 'supprime' }).eq('id', id);
   chargerTaches();
 }
 
@@ -166,7 +172,7 @@ let _archivesOuvertes = false;
 async function basculerArchives() {
   _archivesOuvertes = !_archivesOuvertes;
   const zone = document.getElementById('liste-archives');
-  zone.style.display = _archivesOuvertes ? 'grid' : 'none';
+  zone.style.display = _archivesOuvertes ? 'block' : 'none';
   document.getElementById('btn-archives').textContent = _archivesOuvertes ? '🗄️ Masquer les tâches terminées / supprimées' : '🗄️ Voir les tâches terminées / supprimées';
   if (_archivesOuvertes) chargerArchives();
 }
@@ -177,7 +183,11 @@ async function chargerArchives() {
     sb.from('taches_menage').select('*').eq('actif', false).order('libelle')
   ]);
   const membresParId = Object.fromEntries(membres.map(m => [m.id, m]));
-  document.getElementById('liste-archives').innerHTML = (taches.data || []).map(t => `
+  const toutes = taches.data || [];
+  const terminees = toutes.filter(t => t.statut_archive !== 'supprime');
+  const supprimees = toutes.filter(t => t.statut_archive === 'supprime');
+
+  const carte = (t) => `
     <div class="carte" style="border-left:4px solid var(--border);opacity:0.8;">
       <div style="display:flex;justify-content:space-between;align-items:start;">
         <div>
@@ -191,11 +201,18 @@ async function chargerArchives() {
         <button class="btn" onclick="restaurerTache('${t.id}')">↩️ Restaurer</button>
       </div>
     </div>
-  `).join('') || '<div class="vide">Aucune tâche terminée ou supprimée pour l\'instant.</div>';
+  `;
+
+  document.getElementById('liste-archives').innerHTML = `
+    <h3 style="font-size:1rem;margin:16px 0 8px;">✅ Terminées</h3>
+    <div class="grille-cartes">${terminees.map(carte).join('') || '<div class="vide">Aucune tâche terminée pour l\'instant.</div>'}</div>
+    <h3 style="font-size:1rem;margin:20px 0 8px;">🗑️ Supprimées</h3>
+    <div class="grille-cartes">${supprimees.map(carte).join('') || '<div class="vide">Aucune tâche supprimée pour l\'instant.</div>'}</div>
+  `;
 }
 
 async function restaurerTache(id) {
-  await sb.from('taches_menage').update({ actif: true }).eq('id', id);
+  await sb.from('taches_menage').update({ actif: true, statut_archive: null }).eq('id', id);
   await sb.from('taches_menage_log').delete().eq('tache_id', id);
   chargerArchives();
   chargerTaches();
