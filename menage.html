@@ -36,16 +36,7 @@
   </nav>
   <main>
 
-    <h2 class="section-titre">Toutes les tâches</h2>
-    <p style="color:var(--ink-soft);font-size:0.9rem;margin-top:-6px;">Tâches quotidiennes, hebdomadaires, travaux ponctuels ou simples choses à ne pas oublier au fil du quotidien.</p>
-    <div class="grille-cartes" id="liste-taches"></div>
-
-    <p style="margin-top:20px;">
-      <button class="btn" style="background:var(--paper);color:var(--ink);box-shadow:var(--shadow-1);" onclick="basculerArchives()" id="btn-archives">🗄️ Voir les tâches terminées / supprimées</button>
-    </p>
-    <div class="grille-cartes" id="liste-archives" style="display:none;margin-top:12px;"></div>
-
-    <h2 class="section-titre" id="f-titre-section">Ajouter une tâche</h2>
+    <h2 class="section-titre" id="f-titre-section" style="margin-top:8px;">Ajouter une tâche</h2>
     <div class="carte">
       <form class="mini" id="form-tache">
         <input type="hidden" id="f-id">
@@ -72,6 +63,15 @@
         <button class="btn" type="button" id="f-annuler" style="display:none;background:var(--ink-soft);" onclick="annulerEditionTache()">Annuler</button>
       </form>
     </div>
+
+    <h2 class="section-titre">Toutes les tâches</h2>
+    <p style="color:var(--ink-soft);font-size:0.9rem;margin-top:-6px;">Tâches quotidiennes, hebdomadaires, travaux ponctuels ou simples choses à ne pas oublier au fil du quotidien. Une tâche marquée faite ou supprimée disparaît immédiatement de cette liste.</p>
+    <div class="grille-cartes" id="liste-taches"></div>
+
+    <p style="margin-top:20px;">
+      <button class="btn" style="background:var(--paper);color:var(--ink);box-shadow:var(--shadow-1);" onclick="basculerArchives()" id="btn-archives">🗄️ Voir les tâches terminées / supprimées</button>
+    </p>
+    <div class="grille-cartes" id="liste-archives" style="display:none;margin-top:12px;"></div>
 
   </main>
 </div>
