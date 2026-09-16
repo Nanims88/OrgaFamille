@@ -43,6 +43,12 @@
       </div>
     </div>
 
+    <div class="semaine-nav" style="justify-content:center;">
+      <button class="btn" onclick="deplacerJourEnfant(-1)">◀</button>
+      <button class="btn" id="jour-enfant-label" onclick="allerAujourdhuiEnfant()">Aujourd'hui</button>
+      <button class="btn" id="jour-enfant-suivant" onclick="deplacerJourEnfant(1)">▶</button>
+    </div>
+
     <div class="taches-enfant" id="liste-taches-enfant"></div>
 
   </main>
@@ -58,6 +64,40 @@ document.getElementById('date-jour').textContent = formatDateLongue(dateAujourdh
 const POINTS_PAR_TACHE = 10;
 let _baptiste = null;
 let _tachesBaptiste = [];
+let _offsetJour = 0;
+
+function dateConsultee() {
+  const d = new Date();
+  d.setDate(d.getDate() + _offsetJour);
+  return formatDateLocale(d);
+}
+
+function majLabelJour() {
+  const label = document.getElementById('jour-enfant-label');
+  if (_offsetJour === 0) {
+    label.textContent = "Aujourd'hui";
+  } else if (_offsetJour === -1) {
+    label.textContent = 'Hier';
+  } else {
+    const d = new Date();
+    d.setDate(d.getDate() + _offsetJour);
+    label.textContent = d.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'short' });
+  }
+  document.getElementById('jour-enfant-suivant').disabled = _offsetJour >= 0;
+  document.getElementById('jour-enfant-suivant').style.opacity = _offsetJour >= 0 ? 0.4 : 1;
+}
+
+function deplacerJourEnfant(delta) {
+  if (_offsetJour + delta > 0) return; // jamais dans le futur
+  _offsetJour += delta;
+  majLabelJour();
+  chargerTachesEnfant();
+}
+function allerAujourdhuiEnfant() {
+  _offsetJour = 0;
+  majLabelJour();
+  chargerTachesEnfant();
+}
 
 async function trouverBaptiste() {
   const membres = await getMembres();
@@ -115,12 +155,12 @@ async function chargerTachesEnfant() {
     document.getElementById('liste-taches-enfant').innerHTML = '<div class="vide">Aucun membre "Baptiste" trouvé — vérifie le prénom dans Réglages.</div>';
     return;
   }
-  const jourSemaine = new Date().getDay();
-  const auj = dateAujourdhui();
+  const dateVue = dateConsultee();
+  const jourSemaine = new Date(dateVue + 'T12:00:00').getDay();
 
   const [tachesRes, logsRes] = await Promise.all([
     sb.from('taches_menage').select('*').eq('actif', true).eq('membre_id', _baptiste.id),
-    sb.from('taches_menage_log').select('*').eq('date', auj)
+    sb.from('taches_menage_log').select('*').eq('date', dateVue)
   ]);
   _tachesBaptiste = tachesRes.data || [];
 
@@ -131,7 +171,9 @@ async function chargerTachesEnfant() {
 
   const zone = document.getElementById('liste-taches-enfant');
   if (!tachesDuJour.length) {
-    zone.innerHTML = '<div class="vide">Rien à faire aujourd\'hui, bravo Baptiste ! 🎉</div>';
+    zone.innerHTML = _offsetJour === 0
+      ? '<div class="vide">Rien à faire aujourd\'hui, bravo Baptiste ! 🎉</div>'
+      : '<div class="vide">Rien de prévu ce jour-là.</div>';
     return;
   }
 
@@ -153,7 +195,7 @@ async function basculerTacheEnfant(tacheId, faitActuel, frequence) {
 
   await sb.from('taches_menage_log').upsert({
     tache_id: tacheId,
-    date: dateAujourdhui(),
+    date: dateConsultee(),
     fait: nouvelEtat,
     fait_par: _baptiste.id,
     fait_le: nouvelEtat ? new Date().toISOString() : null
@@ -183,6 +225,7 @@ async function basculerTacheEnfant(tacheId, faitActuel, frequence) {
 }
 
 async function initPage() {
+  majLabelJour();
   await chargerTachesEnfant();
   chargerScores();
 }
