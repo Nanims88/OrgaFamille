@@ -46,7 +46,7 @@
     <div class="carte" id="zone-resume" style="margin-top:12px;"></div>
 
     <h2 class="section-titre">Dépenses variables du mois</h2>
-    <p style="color:var(--ink-soft);font-size:0.9rem;margin-top:-6px;">À saisir au fil du mois par celui qui paie (courses, dépenses enfants...).</p>
+    <p style="color:var(--ink-soft);font-size:0.9rem;margin-top:-6px;">À saisir au fil du mois par celui qui paie (courses, dépenses enfants...). Ces dépenses viennent en crédit/débit sur le montant à verser du <strong>mois suivant</strong>.</p>
     <div class="carte">
       <form class="mini" id="form-depense">
         <select id="dv-membre"></select>
@@ -204,29 +204,36 @@ function calculerPourcentages() {
 }
 
 // ---------- Salaires (figés par mois) ----------
+async function resoudreSalairesEtPourcentages(mois) {
+  const { data: exact } = await sb.from('budget_profils').select('*').eq('mois', mois);
+  const exactParId = Object.fromEntries((exact || []).map(p => [p.membre_id, p.salaire]));
+  const { data: historique } = await sb.from('budget_profils').select('*').lte('mois', mois).order('mois', { ascending: false });
+
+  const salaires = {};
+  const suggestion = {};
+  _adultes.forEach(m => {
+    if (exactParId[m.id] !== undefined) {
+      salaires[m.id] = exactParId[m.id];
+    } else {
+      const derniere = (historique || []).find(p => p.membre_id === m.id);
+      salaires[m.id] = derniere ? derniere.salaire : 0;
+      suggestion[m.id] = !!derniere;
+    }
+  });
+  const total = _adultes.reduce((s, m) => s + (salaires[m.id] || 0), 0);
+  const pourcentages = {};
+  _adultes.forEach(m => { pourcentages[m.id] = total > 0 ? (salaires[m.id] || 0) / total : 1 / _adultes.length; });
+  return { salaires, pourcentages, suggestion };
+}
+
 async function chargerSalaires() {
   const membres = await getMembres();
   _adultes = membres.filter(m => m.type === 'adulte');
   const mois = moisAAAAMM(moisConsulte());
 
-  const { data: exact } = await sb.from('budget_profils').select('*').eq('mois', mois);
-  const exactParId = Object.fromEntries((exact || []).map(p => [p.membre_id, p.salaire]));
-
-  // Pour les membres sans valeur figée ce mois-ci, on reprend la dernière valeur connue comme suggestion
-  const { data: historique } = await sb.from('budget_profils').select('*').lte('mois', mois).order('mois', { ascending: false });
-
-  _salaires = {};
-  const suggestion = {};
-  _adultes.forEach(m => {
-    if (exactParId[m.id] !== undefined) {
-      _salaires[m.id] = exactParId[m.id];
-    } else {
-      const derniere = (historique || []).find(p => p.membre_id === m.id);
-      _salaires[m.id] = derniere ? derniere.salaire : 0;
-      suggestion[m.id] = !!derniere;
-    }
-  });
-  calculerPourcentages();
+  const { salaires, pourcentages, suggestion } = await resoudreSalairesEtPourcentages(mois);
+  _salaires = salaires;
+  _pourcentages = pourcentages;
   remplirSelectsRepartition();
 
   document.getElementById('zone-salaires').innerHTML = _adultes.map(m => `
@@ -510,6 +517,12 @@ document.getElementById('form-depense').addEventListener('submit', async (e) => 
   chargerResume();
 });
 
+function moisPrecedentStr(aaaammStr) {
+  const [a, m] = aaaammStr.split('-').map(Number);
+  const d = new Date(a, m - 2, 1); // m-1 = mois actuel (0-indexé), -1 de plus = mois précédent
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
 // ---------- Résumé du mois ----------
 async function chargerResume() {
   if (_adultes.length < 2) {
@@ -517,17 +530,22 @@ async function chargerResume() {
     return;
   }
   const mois = moisAAAAMM(moisConsulte());
+  const moisPrec = moisPrecedentStr(mois);
   const joursBase = joursOuvresDuMois(moisConsulte());
+
   const { data: transport } = await sb.from('budget_transport').select('*');
   const transportParId = Object.fromEntries((transport || []).map(t => [t.membre_id, t]));
   const { data: ajustEnfants } = await sb.from('budget_charges_enfants_ajustement').select('*').eq('mois', mois);
   const ajustEnfantsParId = Object.fromEntries((ajustEnfants || []).map(a => [a.charge_id, a.ajustement_jours]));
-  const { data: depenses } = await sb.from('budget_depenses_variables').select('*')
-    .gte('date', mois + '-01').lt('date', moisSuivantStr(mois));
   const { data: statutsData } = await sb.from('budget_charges_fixes_statut').select('*').eq('mois', mois);
   const statutParCharge = Object.fromEntries((statutsData || []).map(s => [s.charge_id, s.paye]));
 
-  // Construit la liste des postes : {montant, repartition}
+  // Dépenses variables DU MOIS PRÉCÉDENT — c'est ce qui vient créditer/débiter le versement de ce mois-ci
+  const { data: depensesPrec } = await sb.from('budget_depenses_variables').select('*')
+    .gte('date', moisPrec + '-01').lt('date', mois + '-01');
+  const { pourcentages: pourcentagesPrec } = await resoudreSalairesEtPourcentages(moisPrec);
+
+  // ---- Pot du mois consulté : charges fixes + charges enfants + carburant ----
   const postes = [];
   _chargesFixesCache.forEach(c => postes.push({ montant: _montantsChargesFixes[c.id].montant, repartition: c.repartition }));
   _chargesEnfantsCache.forEach(c => {
@@ -538,27 +556,42 @@ async function chargerResume() {
     const t = transportParId[m.id];
     if (t) postes.push({ montant: t.km_aller * 2 * t.jours_travail_mois * (t.consommation_l_100km / 100) * t.prix_litre, repartition: 'prorata' });
   });
-  (depenses || []).forEach(d => postes.push({ montant: d.montant, repartition: d.repartition }));
-
   const totalMois = postes.reduce((s, p) => s + p.montant, 0);
 
   const partTheorique = {};
   _adultes.forEach(m => partTheorique[m.id] = 0);
   postes.forEach(p => {
-    _adultes.forEach(m => {
-      const taux = tauxRepartition(p.repartition, m.id);
-      partTheorique[m.id] += p.montant * taux;
-    });
+    _adultes.forEach(m => { partTheorique[m.id] += p.montant * tauxRepartition(p.repartition, m.id); });
   });
 
+  // Carburant : chacun est déjà crédité de son propre montant (même mois)
   const dejaPaye = {};
   _adultes.forEach(m => dejaPaye[m.id] = 0);
-  (depenses || []).forEach(d => { if (dejaPaye[d.membre_id] !== undefined) dejaPaye[d.membre_id] += d.montant; });
+  _adultes.forEach(m => {
+    const t = transportParId[m.id];
+    if (t) dejaPaye[m.id] += t.km_aller * 2 * t.jours_travail_mois * (t.consommation_l_100km / 100) * t.prix_litre;
+  });
+
+  // ---- Solde des dépenses variables du mois précédent (crédité/débité sur ce mois) ----
+  const soldeVariablePrec = {};
+  _adultes.forEach(m => soldeVariablePrec[m.id] = 0);
+  (depensesPrec || []).forEach(d => {
+    _adultes.forEach(m => {
+      const taux = d.repartition === 'prorata' ? (pourcentagesPrec[m.id] || 0)
+        : d.repartition === '50-50' ? (1 / _adultes.length)
+        : (d.repartition === m.id ? 1 : 0);
+      soldeVariablePrec[m.id] += d.montant * taux;
+    });
+  });
+  (depensesPrec || []).forEach(d => { if (soldeVariablePrec[d.membre_id] !== undefined) soldeVariablePrec[d.membre_id] -= d.montant; });
+
+  const totalDepensesPrec = (depensesPrec || []).reduce((s, d) => s + d.montant, 0);
 
   const resteAPrelever = _chargesFixesCache.reduce((s, c) => s + (statutParCharge[c.id] ? 0 : _montantsChargesFixes[c.id].montant), 0);
 
   document.getElementById('zone-resume').innerHTML = `
-    <p><strong>Total du mois (charges + dépenses saisies) :</strong> ${totalMois.toFixed(2)} €</p>
+    <p><strong>Charges du mois (fixes + carburant + enfants) :</strong> ${totalMois.toFixed(2)} €</p>
+    <p style="margin-top:2px;color:var(--ink-soft);font-size:0.85rem;">Dépenses variables saisies en ${new Date(moisPrec + '-01').toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })} (créditées ce mois-ci) : ${totalDepensesPrec.toFixed(2)} €</p>
     <p style="margin-top:4px;"><strong>Reste à prélever sur le compte</strong> (charges fixes non encore pointées) : <span style="font-weight:800;">${resteAPrelever.toFixed(2)} €</span></p>
 
     <h3 style="font-size:0.95rem;margin:16px 0 8px;">Charges fixes du mois — à pointer</h3>
@@ -574,12 +607,13 @@ async function chargerResume() {
 
     <div class="grille-cartes" style="margin-top:16px;">
       ${_adultes.map(m => {
-        const solde = partTheorique[m.id] - dejaPaye[m.id];
+        const solde = partTheorique[m.id] - dejaPaye[m.id] + soldeVariablePrec[m.id];
         return `
           <div class="carte" style="border-left:4px solid ${m.couleur}">
             <strong>${m.icone} ${m.nom}</strong>
-            <p style="margin:8px 0 2px;font-size:0.85rem;color:var(--ink-soft);">Part théorique : ${partTheorique[m.id].toFixed(2)} €</p>
-            <p style="margin:2px 0 8px;font-size:0.85rem;color:var(--ink-soft);">Déjà payé ce mois : ${dejaPaye[m.id].toFixed(2)} €</p>
+            <p style="margin:8px 0 2px;font-size:0.85rem;color:var(--ink-soft);">Part théorique (charges + carburant) : ${partTheorique[m.id].toFixed(2)} €</p>
+            <p style="margin:2px 0;font-size:0.85rem;color:var(--ink-soft);">Dont carburant déjà couvert : ${dejaPaye[m.id].toFixed(2)} €</p>
+            <p style="margin:2px 0 8px;font-size:0.85rem;color:var(--ink-soft);">Crédit/débit dépenses variables du mois précédent : ${soldeVariablePrec[m.id] >= 0 ? '+' : ''}${soldeVariablePrec[m.id].toFixed(2)} €</p>
             <p style="font-size:1.3rem;font-weight:800;color:${solde >= 0 ? 'var(--maman)' : 'var(--louis)'}">
               ${solde >= 0 ? 'Doit verser : ' : 'A trop versé : '} ${Math.abs(solde).toFixed(2)} €
             </p>
