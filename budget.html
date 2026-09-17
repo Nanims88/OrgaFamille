@@ -250,7 +250,7 @@ async function chargerTransport() {
           <input type="number" step="1" value="${ajustement}" style="width:60px;" onchange="ajusterJoursTransport('${m.id}', '${mois}', this.value)">
         </label>
         <p style="margin:6px 0;font-size:0.85rem;color:var(--ink-soft);">Jours retenus : <strong>${joursRetenus}</strong></p>
-        <p style="margin-top:6px;"><strong>${cout.toFixed(2)} € / mois</strong></p>
+        <p style="margin-top:6px;"><strong>${cout.toFixed(2)} € / mois</strong> <span class="badge-membre" style="background:var(--ink-soft);">Prorata</span></p>
       </div>
     `;
   }).join('');
