@@ -55,6 +55,7 @@
           <option value="autre">Autre</option>
         </select>
         <input type="text" id="dv-libelle" placeholder="Libellé (optionnel)">
+        <select id="dv-enfant"><option value="">Enfant : —</option></select>
         <input type="number" step="0.01" id="dv-montant" placeholder="Montant €" required>
         <select id="dv-repartition">
           <option value="prorata">Au prorata du salaire</option>
@@ -403,6 +404,7 @@ async function chargerChargesEnfants() {
   const membres = await getMembres();
   _enfants = membres.filter(m => m.type === 'enfant');
   document.getElementById('ce-enfant').innerHTML = '<option value="">Enfant : —</option>' + _enfants.map(e => `<option value="${e.id}">${e.icone} ${e.nom}</option>`).join('');
+  document.getElementById('dv-enfant').innerHTML = '<option value="">Enfant : —</option>' + _enfants.map(e => `<option value="${e.id}">${e.icone} ${e.nom}</option>`).join('');
 
   const mois = moisAAAAMM(moisConsulte());
   const joursBase = joursOuvresDuMois(moisConsulte());
@@ -419,21 +421,29 @@ async function chargerChargesEnfants() {
     c._cout = c._joursRetenus * c.prix_jour;
   });
 
+  // Dépenses variables du mois consultées, liées à un enfant (viennent aussi dans son cumul)
+  const { data: depensesEnfants } = await sb.from('budget_depenses_variables').select('*')
+    .gte('date', mois + '-01').lt('date', moisSuivantStr(mois)).not('enfant_id', 'is', null);
+
   // ---- 2 encarts de synthèse, un par enfant ----
   document.getElementById('zone-charges-enfants-resume').innerHTML = _enfants.map(enfant => {
     const chargesEnfant = _chargesEnfantsCache.filter(c => c.enfant_id === enfant.id);
-    const total = chargesEnfant.reduce((s, c) => s + c._cout, 0);
+    const depensesDeCetEnfant = (depensesEnfants || []).filter(d => d.enfant_id === enfant.id);
+    const total = chargesEnfant.reduce((s, c) => s + c._cout, 0) + depensesDeCetEnfant.reduce((s, d) => s + d.montant, 0);
     const parAdulte = {};
     _adultes.forEach(m => parAdulte[m.id] = 0);
     chargesEnfant.forEach(c => {
       _adultes.forEach(m => { parAdulte[m.id] += c._cout * tauxRepartition(c.repartition, m.id); });
+    });
+    depensesDeCetEnfant.forEach(d => {
+      _adultes.forEach(m => { parAdulte[m.id] += d.montant * tauxRepartition(d.repartition, m.id); });
     });
     return `
       <div class="carte" style="border-left:4px solid ${enfant.couleur}">
         <strong>${enfant.icone} ${enfant.nom}</strong>
         <p style="margin:8px 0 4px;font-size:1.3rem;font-weight:800;">${total.toFixed(2)} € / mois</p>
         ${_adultes.map(m => `<p style="margin:2px 0;font-size:0.85rem;color:var(--ink-soft);">${badgeMembre(m)} ${parAdulte[m.id].toFixed(2)} €</p>`).join('')}
-        ${!chargesEnfant.length ? '<p style="color:var(--ink-soft);font-size:0.85rem;font-style:italic;">Aucune charge pour l\'instant.</p>' : ''}
+        ${!chargesEnfant.length && !depensesDeCetEnfant.length ? '<p style="color:var(--ink-soft);font-size:0.85rem;font-style:italic;">Aucune charge pour l\'instant.</p>' : ''}
       </div>
     `;
   }).join('') || '<div class="vide">Aucun enfant configuré dans Réglages.</div>';
@@ -520,12 +530,13 @@ async function chargerDepenses() {
   const { data } = await sb.from('budget_depenses_variables').select('*')
     .gte('date', mois + '-01').lt('date', moisSuivantStr(mois)).order('date', { ascending: false });
   const membresParId = Object.fromEntries(_adultes.map(m => [m.id, m]));
+  const enfantsParId = Object.fromEntries(_enfants.map(e => [e.id, e]));
 
   document.getElementById('zone-depenses').innerHTML = (data || []).map(d => `
     <div class="carte" style="border-left:4px solid ${membresParId[d.membre_id] ? membresParId[d.membre_id].couleur : 'var(--border)'}">
       <strong>${d.montant.toFixed(2)} €</strong> ${d.libelle ? '— ' + d.libelle : ''}<br>
       <span style="color:var(--ink-soft);font-size:0.85rem;">${d.categorie} · ${new Date(d.date).toLocaleDateString('fr-FR')} · ${labelRepartition(d.repartition)}</span>
-      <div style="margin-top:6px;">${badgeMembre(membresParId[d.membre_id])}</div>
+      <div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap;">${badgeMembre(membresParId[d.membre_id])} ${d.enfant_id && enfantsParId[d.enfant_id] ? badgeMembre(enfantsParId[d.enfant_id]) : ''}</div>
       <div style="margin-top:8px;">
         <button class="btn" style="background:var(--ink-soft)" onclick="supprimerDepense('${d.id}')">Supprimer</button>
       </div>
@@ -549,6 +560,7 @@ document.getElementById('form-depense').addEventListener('submit', async (e) => 
     membre_id: document.getElementById('dv-membre').value,
     categorie: document.getElementById('dv-categorie').value,
     libelle: document.getElementById('dv-libelle').value || null,
+    enfant_id: document.getElementById('dv-enfant').value || null,
     montant: parseFloat(document.getElementById('dv-montant').value) || 0,
     repartition: document.getElementById('dv-repartition').value,
     date: document.getElementById('dv-date').value || dateAujourdhui()
