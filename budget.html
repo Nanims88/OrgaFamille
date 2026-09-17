@@ -442,7 +442,7 @@ async function chargerChargesEnfants() {
     return `
       <div class="carte" style="border-left:4px solid ${enfant.couleur}">
         <strong>${enfant.icone} ${enfant.nom}</strong>
-        <p style="margin:8px 0 4px;font-size:1.3rem;font-weight:800;">${total.toFixed(2)} € / mois</p>
+        <p style="margin:8px 0 4px;font-size:1.3rem;font-weight:800;color:${total < 0 ? 'var(--louis)' : 'var(--ink)'}">${total.toFixed(2)} € / mois</p>
         ${_adultes.map(m => `<p style="margin:2px 0;font-size:0.85rem;color:var(--ink-soft);">${badgeMembre(m)} ${parAdulte[m.id].toFixed(2)} €</p>`).join('')}
         ${!chargesEnfant.length && !depensesDeCetEnfant.length ? '<p style="color:var(--ink-soft);font-size:0.85rem;font-style:italic;">Aucune charge pour l\'instant.</p>' : ''}
       </div>
@@ -462,7 +462,7 @@ async function chargerChargesEnfants() {
           <input type="number" step="1" value="${c._ajustement}" style="width:60px;" onchange="ajusterJoursChargeEnfant('${c.id}', '${mois}', this.value)">
         </label>
         <p style="margin:6px 0;font-size:0.85rem;color:var(--ink-soft);">Jours retenus : <strong>${c._joursRetenus}</strong></p>
-        <span style="font-size:1.2rem;font-weight:800;">${c._cout.toFixed(2)} €</span>
+        <span style="font-size:1.2rem;font-weight:800;color:${c._cout < 0 ? 'var(--louis)' : 'var(--ink)'}">${c._cout.toFixed(2)} €</span>
         <span class="badge-membre" style="background:var(--ink-soft);margin-left:6px;">${labelRepartition(c.repartition)}</span>
         <div style="margin-top:10px;display:flex;gap:6px;">
           <button class="btn" style="background:var(--paper);color:var(--ink);box-shadow:var(--shadow-1);" onclick="modifierChargeEnfant('${c.id}')">✏️ Modifier</button>
