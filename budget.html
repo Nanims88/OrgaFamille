@@ -143,7 +143,7 @@ function deplacerMoisBudget(delta) {
   majLabelMoisBudget();
   chargerSalaires().then(() => {
     chargerTransport();
-    chargerChargesEnfants().then(() => { chargerDepenses(); chargerResume(); });
+    Promise.all([chargerChargesFixes(), chargerChargesEnfants()]).then(() => { chargerDepenses(); chargerResume(); });
   });
 }
 function allerMoisActuelBudget() {
@@ -151,7 +151,7 @@ function allerMoisActuelBudget() {
   majLabelMoisBudget();
   chargerSalaires().then(() => {
     chargerTransport();
-    chargerChargesEnfants().then(() => { chargerDepenses(); chargerResume(); });
+    Promise.all([chargerChargesFixes(), chargerChargesEnfants()]).then(() => { chargerDepenses(); chargerResume(); });
   });
 }
 
@@ -165,6 +165,34 @@ function joursOuvresDuMois(premierJour) {
     if (jourSemaine !== 0 && jourSemaine !== 6) compte++;
   }
   return compte;
+}
+
+function optionsRepartitionHTML(valeurActuelle) {
+  let html = `<option value="prorata"${valeurActuelle === 'prorata' ? ' selected' : ''}>Au prorata du salaire</option>` +
+             `<option value="50-50"${valeurActuelle === '50-50' ? ' selected' : ''}>50 / 50</option>`;
+  _adultes.forEach(m => {
+    html += `<option value="${m.id}"${valeurActuelle === m.id ? ' selected' : ''}>100% à la charge de ${m.nom}</option>`;
+  });
+  return html;
+}
+function remplirSelectsRepartition() {
+  ['cf-repartition', 'ce-repartition', 'dv-repartition'].forEach(id => {
+    const sel = document.getElementById(id);
+    if (!sel) return;
+    const val = sel.value;
+    sel.innerHTML = optionsRepartitionHTML(val);
+  });
+}
+function labelRepartition(rep) {
+  if (rep === 'prorata') return 'Prorata';
+  if (rep === '50-50') return '50/50';
+  const m = _adultes.find(a => a.id === rep);
+  return m ? `100% ${m.nom}` : rep;
+}
+function tauxRepartition(repartition, membreId) {
+  if (repartition === 'prorata') return _pourcentages[membreId] || 0;
+  if (repartition === '50-50') return 1 / _adultes.length;
+  return repartition === membreId ? 1 : 0; // 100% à la charge d'un membre précis
 }
 
 function calculerPourcentages() {
@@ -199,6 +227,7 @@ async function chargerSalaires() {
     }
   });
   calculerPourcentages();
+  remplirSelectsRepartition();
 
   document.getElementById('zone-salaires').innerHTML = _adultes.map(m => `
     <div class="carte" style="border-left:4px solid ${m.couleur}">
@@ -260,22 +289,47 @@ async function enregistrerTransport(e, membreId) {
   return false;
 }
 
-// ---------- Charges fixes ----------
+// ---------- Charges fixes (montants figés par mois, reprise du dernier montant connu) ----------
 let _chargesFixesCache = [];
+let _montantsChargesFixes = {}; // charge_id -> { montant, suggestion }
+
+async function resoudreMontantsChargesFixes(mois) {
+  const { data: exact } = await sb.from('budget_charges_fixes_montant').select('*').eq('mois', mois);
+  const exactMap = Object.fromEntries((exact || []).map(r => [r.charge_id, r.montant]));
+  const { data: hist } = await sb.from('budget_charges_fixes_montant').select('*').lte('mois', mois).order('mois', { ascending: false });
+  const result = {};
+  _chargesFixesCache.forEach(c => {
+    if (exactMap[c.id] !== undefined) {
+      result[c.id] = { montant: exactMap[c.id], suggestion: false };
+    } else {
+      const derniere = (hist || []).find(r => r.charge_id === c.id);
+      result[c.id] = { montant: derniere ? derniere.montant : c.montant, suggestion: !!derniere };
+    }
+  });
+  return result;
+}
+
 async function chargerChargesFixes() {
+  const mois = moisAAAAMM(moisConsulte());
   const { data } = await sb.from('budget_charges_fixes').select('*').eq('actif', true).order('libelle');
   _chargesFixesCache = data || [];
-  document.getElementById('zone-charges-fixes').innerHTML = _chargesFixesCache.map(c => `
+  _montantsChargesFixes = await resoudreMontantsChargesFixes(mois);
+
+  document.getElementById('zone-charges-fixes').innerHTML = _chargesFixesCache.map(c => {
+    const info = _montantsChargesFixes[c.id];
+    return `
     <div class="carte">
       <strong>${c.libelle}</strong><br>
-      <span style="font-size:1.2rem;font-weight:800;color:${c.montant < 0 ? 'var(--louis)' : 'var(--ink)'}">${c.montant.toFixed(2)} €</span>
-      <span class="badge-membre" style="background:var(--ink-soft);margin-left:6px;">${c.repartition === 'prorata' ? 'Prorata' : '50/50'}</span>
+      <span style="font-size:1.2rem;font-weight:800;color:${info.montant < 0 ? 'var(--louis)' : 'var(--ink)'}">${info.montant.toFixed(2)} €</span>
+      <span class="badge-membre" style="background:var(--ink-soft);margin-left:6px;">${labelRepartition(c.repartition)}</span>
+      ${info.suggestion ? '<p style="margin-top:6px;color:var(--ink-soft);font-size:0.78rem;font-style:italic;">Non figé pour ce mois — valeur reprise du dernier mois connu.</p>' : ''}
       <div style="margin-top:10px;display:flex;gap:6px;">
-        <button class="btn" style="background:var(--paper);color:var(--ink);box-shadow:var(--shadow-1);" onclick="modifierChargeFixe('${c.id}')">✏️ Modifier</button>
+        <button class="btn" style="background:var(--paper);color:var(--ink);box-shadow:var(--shadow-1);" onclick="modifierChargeFixe('${c.id}')">✏️ Modifier ce mois</button>
         <button class="btn" style="background:var(--ink-soft)" onclick="supprimerChargeFixe('${c.id}')">Supprimer</button>
       </div>
     </div>
-  `).join('') || '<div class="vide">Aucune charge fixe pour l\'instant.</div>';
+  `;
+  }).join('') || '<div class="vide">Aucune charge fixe pour l\'instant.</div>';
 }
 
 function modifierChargeFixe(id) {
@@ -283,10 +337,10 @@ function modifierChargeFixe(id) {
   if (!c) return;
   document.getElementById('cf-id').value = c.id;
   document.getElementById('cf-libelle').value = c.libelle;
-  document.getElementById('cf-montant').value = c.montant;
+  document.getElementById('cf-montant').value = _montantsChargesFixes[c.id] ? _montantsChargesFixes[c.id].montant : c.montant;
   document.getElementById('cf-repartition').value = c.repartition;
-  document.getElementById('cf-titre-form').textContent = 'Modifier cette charge';
-  document.getElementById('cf-submit').textContent = 'Enregistrer';
+  document.getElementById('cf-titre-form').textContent = 'Modifier cette charge (pour ce mois)';
+  document.getElementById('cf-submit').textContent = 'Figer pour ce mois';
   document.getElementById('cf-annuler').style.display = 'inline-block';
 }
 function annulerEditionChargeFixe() {
@@ -305,13 +359,20 @@ async function supprimerChargeFixe(id) {
 document.getElementById('form-charge-fixe').addEventListener('submit', async (e) => {
   e.preventDefault();
   const id = document.getElementById('cf-id').value;
-  const payload = {
-    libelle: document.getElementById('cf-libelle').value,
-    montant: parseFloat(document.getElementById('cf-montant').value) || 0,
-    repartition: document.getElementById('cf-repartition').value
-  };
-  if (id) await sb.from('budget_charges_fixes').update(payload).eq('id', id);
-  else await sb.from('budget_charges_fixes').insert(payload);
+  const mois = moisAAAAMM(moisConsulte());
+  const montant = parseFloat(document.getElementById('cf-montant').value) || 0;
+  const libelle = document.getElementById('cf-libelle').value;
+  const repartition = document.getElementById('cf-repartition').value;
+
+  let chargeId = id;
+  if (id) {
+    await sb.from('budget_charges_fixes').update({ libelle, repartition }).eq('id', id);
+  } else {
+    const { data: nouvelle } = await sb.from('budget_charges_fixes').insert({ libelle, montant, repartition }).select().single();
+    chargeId = nouvelle.id;
+  }
+  await sb.from('budget_charges_fixes_montant').upsert({ charge_id: chargeId, mois, montant }, { onConflict: 'charge_id,mois' });
+
   annulerEditionChargeFixe();
   await chargerChargesFixes();
   chargerResume();
@@ -343,7 +404,7 @@ async function chargerChargesEnfants() {
         </label>
         <p style="margin:6px 0;font-size:0.85rem;color:var(--ink-soft);">Jours retenus : <strong>${joursRetenus}</strong></p>
         <span style="font-size:1.2rem;font-weight:800;">${cout.toFixed(2)} €</span>
-        <span class="badge-membre" style="background:var(--ink-soft);margin-left:6px;">${c.repartition === 'prorata' ? 'Prorata' : '50/50'}</span>
+        <span class="badge-membre" style="background:var(--ink-soft);margin-left:6px;">${labelRepartition(c.repartition)}</span>
         <div style="margin-top:10px;display:flex;gap:6px;">
           <button class="btn" style="background:var(--paper);color:var(--ink);box-shadow:var(--shadow-1);" onclick="modifierChargeEnfant('${c.id}')">✏️ Modifier</button>
           <button class="btn" style="background:var(--ink-soft)" onclick="supprimerChargeEnfant('${c.id}')">Supprimer</button>
@@ -413,7 +474,7 @@ async function chargerDepenses() {
   document.getElementById('zone-depenses').innerHTML = (data || []).map(d => `
     <div class="carte" style="border-left:4px solid ${membresParId[d.membre_id] ? membresParId[d.membre_id].couleur : 'var(--border)'}">
       <strong>${d.montant.toFixed(2)} €</strong> ${d.libelle ? '— ' + d.libelle : ''}<br>
-      <span style="color:var(--ink-soft);font-size:0.85rem;">${d.categorie} · ${new Date(d.date).toLocaleDateString('fr-FR')} · ${d.repartition === 'prorata' ? 'Prorata' : '50/50'}</span>
+      <span style="color:var(--ink-soft);font-size:0.85rem;">${d.categorie} · ${new Date(d.date).toLocaleDateString('fr-FR')} · ${labelRepartition(d.repartition)}</span>
       <div style="margin-top:6px;">${badgeMembre(membresParId[d.membre_id])}</div>
       <div style="margin-top:8px;">
         <button class="btn" style="background:var(--ink-soft)" onclick="supprimerDepense('${d.id}')">Supprimer</button>
@@ -468,7 +529,7 @@ async function chargerResume() {
 
   // Construit la liste des postes : {montant, repartition}
   const postes = [];
-  _chargesFixesCache.forEach(c => postes.push({ montant: c.montant, repartition: c.repartition }));
+  _chargesFixesCache.forEach(c => postes.push({ montant: _montantsChargesFixes[c.id].montant, repartition: c.repartition }));
   _chargesEnfantsCache.forEach(c => {
     const joursRetenus = Math.max(0, joursBase + (ajustEnfantsParId[c.id] || 0));
     postes.push({ montant: joursRetenus * c.prix_jour, repartition: c.repartition });
@@ -485,7 +546,7 @@ async function chargerResume() {
   _adultes.forEach(m => partTheorique[m.id] = 0);
   postes.forEach(p => {
     _adultes.forEach(m => {
-      const taux = p.repartition === 'prorata' ? (_pourcentages[m.id] || 0) : (1 / _adultes.length);
+      const taux = tauxRepartition(p.repartition, m.id);
       partTheorique[m.id] += p.montant * taux;
     });
   });
@@ -494,7 +555,7 @@ async function chargerResume() {
   _adultes.forEach(m => dejaPaye[m.id] = 0);
   (depenses || []).forEach(d => { if (dejaPaye[d.membre_id] !== undefined) dejaPaye[d.membre_id] += d.montant; });
 
-  const resteAPrelever = _chargesFixesCache.reduce((s, c) => s + (statutParCharge[c.id] ? 0 : c.montant), 0);
+  const resteAPrelever = _chargesFixesCache.reduce((s, c) => s + (statutParCharge[c.id] ? 0 : _montantsChargesFixes[c.id].montant), 0);
 
   document.getElementById('zone-resume').innerHTML = `
     <p><strong>Total du mois (charges + dépenses saisies) :</strong> ${totalMois.toFixed(2)} €</p>
@@ -506,7 +567,7 @@ async function chargerResume() {
         <div class="item-ligne" style="border-bottom:1px solid var(--border);padding:8px 0;">
           <input type="checkbox" ${statutParCharge[c.id] ? 'checked' : ''} onchange="toggleChargeFixePointee('${c.id}', '${mois}', this.checked)">
           <span style="flex:1;">${c.libelle}</span>
-          <span class="heure" style="color:${c.montant < 0 ? 'var(--louis)' : 'var(--ink-soft)'}">${c.montant.toFixed(2)} €</span>
+          <span class="heure" style="color:${_montantsChargesFixes[c.id].montant < 0 ? 'var(--louis)' : 'var(--ink-soft)'}">${_montantsChargesFixes[c.id].montant.toFixed(2)} €</span>
         </div>
       `).join('') || '<div class="vide">Aucune charge fixe.</div>'}
     </div>
