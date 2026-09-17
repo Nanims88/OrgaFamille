@@ -1,0 +1,479 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chez nous — Budget</title>
+<link rel="stylesheet" href="assets/style.css?v=7">
+</head>
+<body>
+
+<div id="gate">
+  <div class="carte">
+    <h2 class="titre">🏡 Chez nous</h2>
+    <p>Mot de passe famille</p>
+    <form id="gate-form">
+      <input id="gate-input" type="password" placeholder="•••••••" autofocus>
+      <button type="submit">Entrer</button>
+    </form>
+    <p class="erreur" id="gate-erreur"></p>
+  </div>
+</div>
+
+<div id="app">
+  <header class="entete">
+    <h1 class="titre">💶 Budget</h1>
+    <div class="date-du-jour" id="date-jour"></div>
+  </header>
+  <nav class="modules">
+    <a href="index.html">🏠 Aujourd'hui</a>
+    <a href="menage.html">🧹 Tâches</a>
+    <a href="agenda.html">📅 Agenda</a>
+    <a href="activites.html">🎒 Activités</a>
+    <a href="checklists.html">✅ Checklists</a>
+    <a href="baptiste.html">👦 Baptiste</a>
+    <a href="budget.html">💶 Budget</a>
+    <a href="parametres.html">⚙️ Réglages</a>
+  </nav>
+  <main>
+
+    <h2 class="section-titre">Salaires & répartition</h2>
+    <p style="color:var(--ink-soft);font-size:0.9rem;margin-top:-6px;">Sert de base au calcul de la répartition "au prorata" sur les autres postes.</p>
+    <div class="grille-cartes" id="zone-salaires"></div>
+
+    <h2 class="section-titre">Carburant</h2>
+    <p style="color:var(--ink-soft);font-size:0.9rem;margin-top:-6px;">Calculé automatiquement : distance aller × 2 × jours de travail × consommation ÷ 100 × prix du litre.</p>
+    <div class="grille-cartes" id="zone-transport"></div>
+
+    <h2 class="section-titre">Charges fixes</h2>
+    <div class="grille-cartes" id="zone-charges-fixes"></div>
+    <div class="carte" style="margin-top:12px;">
+      <strong id="cf-titre-form">Ajouter une charge fixe</strong>
+      <form class="mini" id="form-charge-fixe">
+        <input type="hidden" id="cf-id">
+        <input type="text" id="cf-libelle" placeholder="Ex: Loyer, Assurance..." required>
+        <input type="number" step="0.01" id="cf-montant" placeholder="Montant €" required>
+        <select id="cf-repartition">
+          <option value="prorata">Au prorata du salaire</option>
+          <option value="50-50">50 / 50</option>
+        </select>
+        <button class="btn" type="submit" id="cf-submit">Ajouter</button>
+        <button class="btn" type="button" id="cf-annuler" style="display:none;background:var(--ink-soft);" onclick="annulerEditionChargeFixe()">Annuler</button>
+      </form>
+    </div>
+
+    <h2 class="section-titre">Charges enfants (cantine, garderie...)</h2>
+    <p style="color:var(--ink-soft);font-size:0.9rem;margin-top:-6px;">Calculé automatiquement : nombre de jours par mois × prix à la journée.</p>
+    <div class="grille-cartes" id="zone-charges-enfants"></div>
+    <div class="carte" style="margin-top:12px;">
+      <strong id="ce-titre-form">Ajouter une charge enfant</strong>
+      <form class="mini" id="form-charge-enfant">
+        <input type="hidden" id="ce-id">
+        <input type="text" id="ce-libelle" placeholder="Ex: Cantine Baptiste" required>
+        <input type="number" step="0.5" id="ce-jours" placeholder="Jours / mois" required>
+        <input type="number" step="0.01" id="ce-prix" placeholder="Prix / jour €" required>
+        <select id="ce-repartition">
+          <option value="prorata">Au prorata du salaire</option>
+          <option value="50-50">50 / 50</option>
+        </select>
+        <button class="btn" type="submit" id="ce-submit">Ajouter</button>
+        <button class="btn" type="button" id="ce-annuler" style="display:none;background:var(--ink-soft);" onclick="annulerEditionChargeEnfant()">Annuler</button>
+      </form>
+    </div>
+
+    <h2 class="section-titre">Dépenses variables du mois</h2>
+    <p style="color:var(--ink-soft);font-size:0.9rem;margin-top:-6px;">À saisir au fil du mois par celui qui paie (courses, dépenses enfants...).</p>
+    <div class="carte">
+      <form class="mini" id="form-depense">
+        <select id="dv-membre"></select>
+        <select id="dv-categorie" onchange="preremplirRepartitionDepense()">
+          <option value="courses">Courses</option>
+          <option value="enfants">Dépenses enfants</option>
+          <option value="autre">Autre</option>
+        </select>
+        <input type="text" id="dv-libelle" placeholder="Libellé (optionnel)">
+        <input type="number" step="0.01" id="dv-montant" placeholder="Montant €" required>
+        <select id="dv-repartition">
+          <option value="prorata">Au prorata du salaire</option>
+          <option value="50-50">50 / 50</option>
+        </select>
+        <input type="date" id="dv-date">
+        <button class="btn" type="submit">Ajouter</button>
+      </form>
+    </div>
+    <div class="grille-cartes" id="zone-depenses" style="margin-top:12px;"></div>
+
+    <h2 class="section-titre">Résumé du mois</h2>
+    <div class="semaine-nav" style="justify-content:center;">
+      <button class="btn" onclick="deplacerMoisBudget(-1)">◀</button>
+      <button class="btn" id="budget-mois-label" onclick="allerMoisActuelBudget()">Ce mois</button>
+      <button class="btn" onclick="deplacerMoisBudget(1)">▶</button>
+    </div>
+    <div class="carte" id="zone-resume" style="margin-top:12px;"></div>
+
+  </main>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="assets/config.js?v=7"></script>
+<script src="assets/app.js?v=7"></script>
+<script>
+document.getElementById('date-jour').textContent = formatDateLongue(dateAujourdhui());
+
+let _adultes = [];       // les deux membres "adulte"
+let _salaires = {};      // membre_id -> salaire
+let _pourcentages = {};  // membre_id -> % (0-1)
+let _offsetMoisBudget = 0;
+
+function moisConsulte() {
+  const d = new Date();
+  d.setDate(1);
+  d.setMonth(d.getMonth() + _offsetMoisBudget);
+  return d; // premier jour du mois consulté
+}
+function moisAAAAMM(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+function majLabelMoisBudget() {
+  document.getElementById('budget-mois-label').textContent =
+    _offsetMoisBudget === 0 ? 'Ce mois' : moisConsulte().toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+}
+function deplacerMoisBudget(delta) {
+  _offsetMoisBudget += delta;
+  majLabelMoisBudget();
+  chargerDepenses();
+  chargerResume();
+}
+function allerMoisActuelBudget() {
+  _offsetMoisBudget = 0;
+  majLabelMoisBudget();
+  chargerDepenses();
+  chargerResume();
+}
+
+function calculerPourcentages() {
+  const total = _adultes.reduce((s, m) => s + (_salaires[m.id] || 0), 0);
+  _pourcentages = {};
+  _adultes.forEach(m => {
+    _pourcentages[m.id] = total > 0 ? (_salaires[m.id] || 0) / total : 1 / _adultes.length;
+  });
+}
+
+// ---------- Salaires ----------
+async function chargerSalaires() {
+  const membres = await getMembres();
+  _adultes = membres.filter(m => m.type === 'adulte');
+  const { data } = await sb.from('budget_profils').select('*');
+  _salaires = {};
+  (data || []).forEach(p => _salaires[p.membre_id] = p.salaire);
+  calculerPourcentages();
+
+  document.getElementById('zone-salaires').innerHTML = _adultes.map(m => `
+    <div class="carte" style="border-left:4px solid ${m.couleur}">
+      <strong>${m.icone} ${m.nom}</strong>
+      <form class="mini" onsubmit="return enregistrerSalaire(event, '${m.id}')">
+        <input type="number" step="0.01" name="salaire" value="${_salaires[m.id] || ''}" placeholder="Salaire net mensuel €">
+        <button class="btn" type="submit">Enregistrer</button>
+      </form>
+      <p style="margin-top:8px;color:var(--ink-soft);font-size:0.9rem;">Part au prorata : <strong>${Math.round((_pourcentages[m.id] || 0) * 100)}%</strong></p>
+    </div>
+  `).join('');
+}
+
+async function enregistrerSalaire(e, membreId) {
+  e.preventDefault();
+  const valeur = parseFloat(e.target.salaire.value) || 0;
+  await sb.from('budget_profils').upsert({ membre_id: membreId, salaire: valeur });
+  await chargerSalaires();
+  chargerResume();
+  return false;
+}
+
+// ---------- Transport / carburant ----------
+async function chargerTransport() {
+  const { data } = await sb.from('budget_transport').select('*');
+  const parId = Object.fromEntries((data || []).map(t => [t.membre_id, t]));
+
+  document.getElementById('zone-transport').innerHTML = _adultes.map(m => {
+    const t = parId[m.id] || { km_aller: 0, jours_travail_mois: 20, consommation_l_100km: 6, prix_litre: 1.8 };
+    const cout = t.km_aller * 2 * t.jours_travail_mois * (t.consommation_l_100km / 100) * t.prix_litre;
+    return `
+      <div class="carte" style="border-left:4px solid ${m.couleur}">
+        <strong>${m.icone} ${m.nom}</strong>
+        <form class="mini" onsubmit="return enregistrerTransport(event, '${m.id}')">
+          <label style="font-size:0.8rem;">Km aller <input type="number" step="0.1" name="km" value="${t.km_aller}" style="width:70px;"></label>
+          <label style="font-size:0.8rem;">Jours/mois <input type="number" step="0.5" name="jours" value="${t.jours_travail_mois}" style="width:60px;"></label>
+          <label style="font-size:0.8rem;">L/100km <input type="number" step="0.1" name="conso" value="${t.consommation_l_100km}" style="width:60px;"></label>
+          <label style="font-size:0.8rem;">Prix/L € <input type="number" step="0.01" name="prix" value="${t.prix_litre}" style="width:70px;"></label>
+          <button class="btn" type="submit">Enregistrer</button>
+        </form>
+        <p style="margin-top:8px;"><strong>${cout.toFixed(2)} € / mois</strong></p>
+      </div>
+    `;
+  }).join('');
+}
+
+async function enregistrerTransport(e, membreId) {
+  e.preventDefault();
+  await sb.from('budget_transport').upsert({
+    membre_id: membreId,
+    km_aller: parseFloat(e.target.km.value) || 0,
+    jours_travail_mois: parseFloat(e.target.jours.value) || 0,
+    consommation_l_100km: parseFloat(e.target.conso.value) || 0,
+    prix_litre: parseFloat(e.target.prix.value) || 0
+  });
+  await chargerTransport();
+  chargerResume();
+  return false;
+}
+
+// ---------- Charges fixes ----------
+let _chargesFixesCache = [];
+async function chargerChargesFixes() {
+  const { data } = await sb.from('budget_charges_fixes').select('*').eq('actif', true).order('libelle');
+  _chargesFixesCache = data || [];
+  document.getElementById('zone-charges-fixes').innerHTML = _chargesFixesCache.map(c => `
+    <div class="carte">
+      <strong>${c.libelle}</strong><br>
+      <span style="font-size:1.2rem;font-weight:800;">${c.montant.toFixed(2)} €</span>
+      <span class="badge-membre" style="background:var(--ink-soft);margin-left:6px;">${c.repartition === 'prorata' ? 'Prorata' : '50/50'}</span>
+      <div style="margin-top:10px;display:flex;gap:6px;">
+        <button class="btn" style="background:var(--paper);color:var(--ink);box-shadow:var(--shadow-1);" onclick="modifierChargeFixe('${c.id}')">✏️ Modifier</button>
+        <button class="btn" style="background:var(--ink-soft)" onclick="supprimerChargeFixe('${c.id}')">Supprimer</button>
+      </div>
+    </div>
+  `).join('') || '<div class="vide">Aucune charge fixe pour l\'instant.</div>';
+}
+
+function modifierChargeFixe(id) {
+  const c = _chargesFixesCache.find(x => x.id === id);
+  if (!c) return;
+  document.getElementById('cf-id').value = c.id;
+  document.getElementById('cf-libelle').value = c.libelle;
+  document.getElementById('cf-montant').value = c.montant;
+  document.getElementById('cf-repartition').value = c.repartition;
+  document.getElementById('cf-titre-form').textContent = 'Modifier cette charge';
+  document.getElementById('cf-submit').textContent = 'Enregistrer';
+  document.getElementById('cf-annuler').style.display = 'inline-block';
+}
+function annulerEditionChargeFixe() {
+  document.getElementById('form-charge-fixe').reset();
+  document.getElementById('cf-id').value = '';
+  document.getElementById('cf-titre-form').textContent = 'Ajouter une charge fixe';
+  document.getElementById('cf-submit').textContent = 'Ajouter';
+  document.getElementById('cf-annuler').style.display = 'none';
+}
+async function supprimerChargeFixe(id) {
+  if (!confirm('Supprimer cette charge fixe ?')) return;
+  await sb.from('budget_charges_fixes').update({ actif: false }).eq('id', id);
+  await chargerChargesFixes();
+  chargerResume();
+}
+document.getElementById('form-charge-fixe').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const id = document.getElementById('cf-id').value;
+  const payload = {
+    libelle: document.getElementById('cf-libelle').value,
+    montant: parseFloat(document.getElementById('cf-montant').value) || 0,
+    repartition: document.getElementById('cf-repartition').value
+  };
+  if (id) await sb.from('budget_charges_fixes').update(payload).eq('id', id);
+  else await sb.from('budget_charges_fixes').insert(payload);
+  annulerEditionChargeFixe();
+  await chargerChargesFixes();
+  chargerResume();
+});
+
+// ---------- Charges enfants ----------
+let _chargesEnfantsCache = [];
+async function chargerChargesEnfants() {
+  const { data } = await sb.from('budget_charges_enfants').select('*').eq('actif', true).order('libelle');
+  _chargesEnfantsCache = data || [];
+  document.getElementById('zone-charges-enfants').innerHTML = _chargesEnfantsCache.map(c => {
+    const cout = c.jours_par_mois * c.prix_jour;
+    return `
+      <div class="carte">
+        <strong>${c.libelle}</strong><br>
+        <span style="color:var(--ink-soft);font-size:0.85rem;">${c.jours_par_mois} j × ${c.prix_jour.toFixed(2)} €</span><br>
+        <span style="font-size:1.2rem;font-weight:800;">${cout.toFixed(2)} €</span>
+        <span class="badge-membre" style="background:var(--ink-soft);margin-left:6px;">${c.repartition === 'prorata' ? 'Prorata' : '50/50'}</span>
+        <div style="margin-top:10px;display:flex;gap:6px;">
+          <button class="btn" style="background:var(--paper);color:var(--ink);box-shadow:var(--shadow-1);" onclick="modifierChargeEnfant('${c.id}')">✏️ Modifier</button>
+          <button class="btn" style="background:var(--ink-soft)" onclick="supprimerChargeEnfant('${c.id}')">Supprimer</button>
+        </div>
+      </div>
+    `;
+  }).join('') || '<div class="vide">Aucune charge enfant pour l\'instant.</div>';
+}
+function modifierChargeEnfant(id) {
+  const c = _chargesEnfantsCache.find(x => x.id === id);
+  if (!c) return;
+  document.getElementById('ce-id').value = c.id;
+  document.getElementById('ce-libelle').value = c.libelle;
+  document.getElementById('ce-jours').value = c.jours_par_mois;
+  document.getElementById('ce-prix').value = c.prix_jour;
+  document.getElementById('ce-repartition').value = c.repartition;
+  document.getElementById('ce-titre-form').textContent = 'Modifier cette charge';
+  document.getElementById('ce-submit').textContent = 'Enregistrer';
+  document.getElementById('ce-annuler').style.display = 'inline-block';
+}
+function annulerEditionChargeEnfant() {
+  document.getElementById('form-charge-enfant').reset();
+  document.getElementById('ce-id').value = '';
+  document.getElementById('ce-titre-form').textContent = 'Ajouter une charge enfant';
+  document.getElementById('ce-submit').textContent = 'Ajouter';
+  document.getElementById('ce-annuler').style.display = 'none';
+}
+async function supprimerChargeEnfant(id) {
+  if (!confirm('Supprimer cette charge ?')) return;
+  await sb.from('budget_charges_enfants').update({ actif: false }).eq('id', id);
+  await chargerChargesEnfants();
+  chargerResume();
+}
+document.getElementById('form-charge-enfant').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const id = document.getElementById('ce-id').value;
+  const payload = {
+    libelle: document.getElementById('ce-libelle').value,
+    jours_par_mois: parseFloat(document.getElementById('ce-jours').value) || 0,
+    prix_jour: parseFloat(document.getElementById('ce-prix').value) || 0,
+    repartition: document.getElementById('ce-repartition').value
+  };
+  if (id) await sb.from('budget_charges_enfants').update(payload).eq('id', id);
+  else await sb.from('budget_charges_enfants').insert(payload);
+  annulerEditionChargeEnfant();
+  await chargerChargesEnfants();
+  chargerResume();
+});
+
+// ---------- Dépenses variables ----------
+function preremplirRepartitionDepense() {
+  const cat = document.getElementById('dv-categorie').value;
+  document.getElementById('dv-repartition').value = cat === 'enfants' ? '50-50' : 'prorata';
+}
+
+async function chargerDepenses() {
+  const mois = moisAAAAMM(moisConsulte());
+  const { data } = await sb.from('budget_depenses_variables').select('*')
+    .gte('date', mois + '-01').lt('date', moisSuivantStr(mois)).order('date', { ascending: false });
+  const membresParId = Object.fromEntries(_adultes.map(m => [m.id, m]));
+
+  document.getElementById('zone-depenses').innerHTML = (data || []).map(d => `
+    <div class="carte" style="border-left:4px solid ${membresParId[d.membre_id] ? membresParId[d.membre_id].couleur : 'var(--border)'}">
+      <strong>${d.montant.toFixed(2)} €</strong> ${d.libelle ? '— ' + d.libelle : ''}<br>
+      <span style="color:var(--ink-soft);font-size:0.85rem;">${d.categorie} · ${new Date(d.date).toLocaleDateString('fr-FR')} · ${d.repartition === 'prorata' ? 'Prorata' : '50/50'}</span>
+      <div style="margin-top:6px;">${badgeMembre(membresParId[d.membre_id])}</div>
+      <div style="margin-top:8px;">
+        <button class="btn" style="background:var(--ink-soft)" onclick="supprimerDepense('${d.id}')">Supprimer</button>
+      </div>
+    </div>
+  `).join('') || '<div class="vide">Aucune dépense saisie ce mois-ci.</div>';
+}
+function moisSuivantStr(aaaammStr) {
+  const [a, m] = aaaammStr.split('-').map(Number);
+  const d = new Date(a, m, 1); // m est déjà le mois suivant (0-indexé = mois actuel +1)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
+}
+async function supprimerDepense(id) {
+  if (!confirm('Supprimer cette dépense ?')) return;
+  await sb.from('budget_depenses_variables').delete().eq('id', id);
+  await chargerDepenses();
+  chargerResume();
+}
+document.getElementById('form-depense').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  await sb.from('budget_depenses_variables').insert({
+    membre_id: document.getElementById('dv-membre').value,
+    categorie: document.getElementById('dv-categorie').value,
+    libelle: document.getElementById('dv-libelle').value || null,
+    montant: parseFloat(document.getElementById('dv-montant').value) || 0,
+    repartition: document.getElementById('dv-repartition').value,
+    date: document.getElementById('dv-date').value || dateAujourdhui()
+  });
+  e.target.reset();
+  document.getElementById('dv-date').value = '';
+  preremplirRepartitionDepense();
+  await chargerDepenses();
+  chargerResume();
+});
+
+// ---------- Résumé du mois ----------
+async function chargerResume() {
+  if (_adultes.length < 2) {
+    document.getElementById('zone-resume').innerHTML = '<div class="vide">Configure au moins deux membres "adulte" dans Réglages pour voir le résumé.</div>';
+    return;
+  }
+  const mois = moisAAAAMM(moisConsulte());
+  const { data: transport } = await sb.from('budget_transport').select('*');
+  const transportParId = Object.fromEntries((transport || []).map(t => [t.membre_id, t]));
+  const { data: depenses } = await sb.from('budget_depenses_variables').select('*')
+    .gte('date', mois + '-01').lt('date', moisSuivantStr(mois));
+  const { data: reports } = await sb.from('budget_report').select('*').eq('mois', mois);
+  const reportParId = Object.fromEntries((reports || []).map(r => [r.membre_id, r.montant]));
+
+  // Construit la liste des postes : {montant, repartition}
+  const postes = [];
+  _chargesFixesCache.forEach(c => postes.push({ montant: c.montant, repartition: c.repartition }));
+  _chargesEnfantsCache.forEach(c => postes.push({ montant: c.jours_par_mois * c.prix_jour, repartition: c.repartition }));
+  _adultes.forEach(m => {
+    const t = transportParId[m.id];
+    if (t) postes.push({ montant: t.km_aller * 2 * t.jours_travail_mois * (t.consommation_l_100km / 100) * t.prix_litre, repartition: 'prorata' });
+  });
+  (depenses || []).forEach(d => postes.push({ montant: d.montant, repartition: d.repartition }));
+
+  const totalMois = postes.reduce((s, p) => s + p.montant, 0);
+
+  const partTheorique = {};
+  _adultes.forEach(m => partTheorique[m.id] = 0);
+  postes.forEach(p => {
+    _adultes.forEach(m => {
+      const taux = p.repartition === 'prorata' ? (_pourcentages[m.id] || 0) : (1 / _adultes.length);
+      partTheorique[m.id] += p.montant * taux;
+    });
+  });
+
+  const dejaPaye = {};
+  _adultes.forEach(m => dejaPaye[m.id] = 0);
+  (depenses || []).forEach(d => { if (dejaPaye[d.membre_id] !== undefined) dejaPaye[d.membre_id] += d.montant; });
+
+  document.getElementById('zone-resume').innerHTML = `
+    <p><strong>Total du mois (charges + dépenses saisies) :</strong> ${totalMois.toFixed(2)} €</p>
+    <div class="grille-cartes" style="margin-top:10px;">
+      ${_adultes.map(m => {
+        const report = reportParId[m.id] || 0;
+        const solde = partTheorique[m.id] - dejaPaye[m.id] + report;
+        return `
+          <div class="carte" style="border-left:4px solid ${m.couleur}">
+            <strong>${m.icone} ${m.nom}</strong>
+            <p style="margin:8px 0 2px;font-size:0.85rem;color:var(--ink-soft);">Part théorique : ${partTheorique[m.id].toFixed(2)} €</p>
+            <p style="margin:2px 0;font-size:0.85rem;color:var(--ink-soft);">Déjà payé ce mois : ${dejaPaye[m.id].toFixed(2)} €</p>
+            <p style="margin:2px 0 8px;font-size:0.85rem;">Report mois précédent :
+              <input type="number" step="0.01" value="${report}" style="width:80px;" onchange="enregistrerReport('${m.id}', '${mois}', this.value)"> €
+            </p>
+            <p style="font-size:1.3rem;font-weight:800;color:${solde >= 0 ? 'var(--maman)' : 'var(--louis)'}">
+              ${solde >= 0 ? 'Doit verser : ' : 'A trop versé : '} ${Math.abs(solde).toFixed(2)} €
+            </p>
+          </div>
+        `;
+      }).join('')}
+    </div>
+  `;
+}
+
+async function enregistrerReport(membreId, mois, valeur) {
+  await sb.from('budget_report').upsert({ membre_id: membreId, mois, montant: parseFloat(valeur) || 0 }, { onConflict: 'membre_id,mois' });
+  chargerResume();
+}
+
+async function initPage() {
+  await chargerSalaires();
+  const membres = await getMembres();
+  document.getElementById('dv-membre').innerHTML = _adultes.map(m => `<option value="${m.id}">${m.icone} ${m.nom}</option>`).join('');
+  await Promise.all([chargerTransport(), chargerChargesFixes(), chargerChargesEnfants()]);
+  majLabelMoisBudget();
+  await chargerDepenses();
+  chargerResume();
+}
+</script>
+</body>
+</html>
