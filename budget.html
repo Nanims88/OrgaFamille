@@ -76,6 +76,7 @@
     <div class="grille-cartes" id="zone-transport"></div>
 
     <h2 class="section-titre">Charges fixes</h2>
+    <p style="color:var(--ink-soft);font-size:0.9rem;margin-top:-6px;">Utilise un montant négatif pour une entrée d'argent (CAF, aides...) — elle viendra en déduction du total à répartir.</p>
     <div class="grille-cartes" id="zone-charges-fixes"></div>
     <div class="carte" style="margin-top:12px;">
       <strong id="cf-titre-form">Ajouter une charge fixe</strong>
@@ -141,14 +142,12 @@ function majLabelMoisBudget() {
 function deplacerMoisBudget(delta) {
   _offsetMoisBudget += delta;
   majLabelMoisBudget();
-  chargerDepenses();
-  chargerResume();
+  chargerSalaires().then(() => { chargerDepenses(); chargerResume(); });
 }
 function allerMoisActuelBudget() {
   _offsetMoisBudget = 0;
   majLabelMoisBudget();
-  chargerDepenses();
-  chargerResume();
+  chargerSalaires().then(() => { chargerDepenses(); chargerResume(); });
 }
 
 function calculerPourcentages() {
@@ -159,13 +158,29 @@ function calculerPourcentages() {
   });
 }
 
-// ---------- Salaires ----------
+// ---------- Salaires (figés par mois) ----------
 async function chargerSalaires() {
   const membres = await getMembres();
   _adultes = membres.filter(m => m.type === 'adulte');
-  const { data } = await sb.from('budget_profils').select('*');
+  const mois = moisAAAAMM(moisConsulte());
+
+  const { data: exact } = await sb.from('budget_profils').select('*').eq('mois', mois);
+  const exactParId = Object.fromEntries((exact || []).map(p => [p.membre_id, p.salaire]));
+
+  // Pour les membres sans valeur figée ce mois-ci, on reprend la dernière valeur connue comme suggestion
+  const { data: historique } = await sb.from('budget_profils').select('*').lte('mois', mois).order('mois', { ascending: false });
+
   _salaires = {};
-  (data || []).forEach(p => _salaires[p.membre_id] = p.salaire);
+  const suggestion = {};
+  _adultes.forEach(m => {
+    if (exactParId[m.id] !== undefined) {
+      _salaires[m.id] = exactParId[m.id];
+    } else {
+      const derniere = (historique || []).find(p => p.membre_id === m.id);
+      _salaires[m.id] = derniere ? derniere.salaire : 0;
+      suggestion[m.id] = !!derniere;
+    }
+  });
   calculerPourcentages();
 
   document.getElementById('zone-salaires').innerHTML = _adultes.map(m => `
@@ -173,8 +188,9 @@ async function chargerSalaires() {
       <strong>${m.icone} ${m.nom}</strong>
       <form class="mini" onsubmit="return enregistrerSalaire(event, '${m.id}')">
         <input type="number" step="0.01" name="salaire" value="${_salaires[m.id] || ''}" placeholder="Salaire net mensuel €">
-        <button class="btn" type="submit">Enregistrer</button>
+        <button class="btn" type="submit">Figer pour ce mois</button>
       </form>
+      ${suggestion[m.id] ? '<p style="margin-top:6px;color:var(--ink-soft);font-size:0.8rem;font-style:italic;">Non figé pour ce mois — valeur reprise du dernier mois connu, clique pour confirmer.</p>' : ''}
       <p style="margin-top:8px;color:var(--ink-soft);font-size:0.9rem;">Part au prorata : <strong>${Math.round((_pourcentages[m.id] || 0) * 100)}%</strong></p>
     </div>
   `).join('');
@@ -183,7 +199,7 @@ async function chargerSalaires() {
 async function enregistrerSalaire(e, membreId) {
   e.preventDefault();
   const valeur = parseFloat(e.target.salaire.value) || 0;
-  await sb.from('budget_profils').upsert({ membre_id: membreId, salaire: valeur });
+  await sb.from('budget_profils').upsert({ membre_id: membreId, mois: moisAAAAMM(moisConsulte()), salaire: valeur }, { onConflict: 'membre_id,mois' });
   await chargerSalaires();
   chargerResume();
   return false;
@@ -235,7 +251,7 @@ async function chargerChargesFixes() {
   document.getElementById('zone-charges-fixes').innerHTML = _chargesFixesCache.map(c => `
     <div class="carte">
       <strong>${c.libelle}</strong><br>
-      <span style="font-size:1.2rem;font-weight:800;">${c.montant.toFixed(2)} €</span>
+      <span style="font-size:1.2rem;font-weight:800;color:${c.montant < 0 ? 'var(--louis)' : 'var(--ink)'}">${c.montant.toFixed(2)} €</span>
       <span class="badge-membre" style="background:var(--ink-soft);margin-left:6px;">${c.repartition === 'prorata' ? 'Prorata' : '50/50'}</span>
       <div style="margin-top:10px;display:flex;gap:6px;">
         <button class="btn" style="background:var(--paper);color:var(--ink);box-shadow:var(--shadow-1);" onclick="modifierChargeFixe('${c.id}')">✏️ Modifier</button>
@@ -408,8 +424,8 @@ async function chargerResume() {
   const transportParId = Object.fromEntries((transport || []).map(t => [t.membre_id, t]));
   const { data: depenses } = await sb.from('budget_depenses_variables').select('*')
     .gte('date', mois + '-01').lt('date', moisSuivantStr(mois));
-  const { data: reports } = await sb.from('budget_report').select('*').eq('mois', mois);
-  const reportParId = Object.fromEntries((reports || []).map(r => [r.membre_id, r.montant]));
+  const { data: statutsData } = await sb.from('budget_charges_fixes_statut').select('*').eq('mois', mois);
+  const statutParCharge = Object.fromEntries((statutsData || []).map(s => [s.charge_id, s.paye]));
 
   // Construit la liste des postes : {montant, repartition}
   const postes = [];
@@ -436,20 +452,31 @@ async function chargerResume() {
   _adultes.forEach(m => dejaPaye[m.id] = 0);
   (depenses || []).forEach(d => { if (dejaPaye[d.membre_id] !== undefined) dejaPaye[d.membre_id] += d.montant; });
 
+  const resteAPrelever = _chargesFixesCache.reduce((s, c) => s + (statutParCharge[c.id] ? 0 : c.montant), 0);
+
   document.getElementById('zone-resume').innerHTML = `
     <p><strong>Total du mois (charges + dépenses saisies) :</strong> ${totalMois.toFixed(2)} €</p>
-    <div class="grille-cartes" style="margin-top:10px;">
+    <p style="margin-top:4px;"><strong>Reste à prélever sur le compte</strong> (charges fixes non encore pointées) : <span style="font-weight:800;">${resteAPrelever.toFixed(2)} €</span></p>
+
+    <h3 style="font-size:0.95rem;margin:16px 0 8px;">Charges fixes du mois — à pointer</h3>
+    <div class="taches-enfant" style="max-width:none;">
+      ${_chargesFixesCache.map(c => `
+        <div class="item-ligne" style="border-bottom:1px solid var(--border);padding:8px 0;">
+          <input type="checkbox" ${statutParCharge[c.id] ? 'checked' : ''} onchange="toggleChargeFixePointee('${c.id}', '${mois}', this.checked)">
+          <span style="flex:1;">${c.libelle}</span>
+          <span class="heure" style="color:${c.montant < 0 ? 'var(--louis)' : 'var(--ink-soft)'}">${c.montant.toFixed(2)} €</span>
+        </div>
+      `).join('') || '<div class="vide">Aucune charge fixe.</div>'}
+    </div>
+
+    <div class="grille-cartes" style="margin-top:16px;">
       ${_adultes.map(m => {
-        const report = reportParId[m.id] || 0;
-        const solde = partTheorique[m.id] - dejaPaye[m.id] + report;
+        const solde = partTheorique[m.id] - dejaPaye[m.id];
         return `
           <div class="carte" style="border-left:4px solid ${m.couleur}">
             <strong>${m.icone} ${m.nom}</strong>
             <p style="margin:8px 0 2px;font-size:0.85rem;color:var(--ink-soft);">Part théorique : ${partTheorique[m.id].toFixed(2)} €</p>
-            <p style="margin:2px 0;font-size:0.85rem;color:var(--ink-soft);">Déjà payé ce mois : ${dejaPaye[m.id].toFixed(2)} €</p>
-            <p style="margin:2px 0 8px;font-size:0.85rem;">Report mois précédent :
-              <input type="number" step="0.01" value="${report}" style="width:80px;" onchange="enregistrerReport('${m.id}', '${mois}', this.value)"> €
-            </p>
+            <p style="margin:2px 0 8px;font-size:0.85rem;color:var(--ink-soft);">Déjà payé ce mois : ${dejaPaye[m.id].toFixed(2)} €</p>
             <p style="font-size:1.3rem;font-weight:800;color:${solde >= 0 ? 'var(--maman)' : 'var(--louis)'}">
               ${solde >= 0 ? 'Doit verser : ' : 'A trop versé : '} ${Math.abs(solde).toFixed(2)} €
             </p>
@@ -460,8 +487,8 @@ async function chargerResume() {
   `;
 }
 
-async function enregistrerReport(membreId, mois, valeur) {
-  await sb.from('budget_report').upsert({ membre_id: membreId, mois, montant: parseFloat(valeur) || 0 }, { onConflict: 'membre_id,mois' });
+async function toggleChargeFixePointee(chargeId, mois, coche) {
+  await sb.from('budget_charges_fixes_statut').upsert({ charge_id: chargeId, mois, paye: coche }, { onConflict: 'charge_id,mois' });
   chargerResume();
 }
 
