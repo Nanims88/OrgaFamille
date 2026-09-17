@@ -89,13 +89,8 @@
     <p style="color:var(--ink-soft);font-size:0.9rem;margin-top:-6px;">À titre informatif. Ces dépenses viennent en crédit/débit sur le montant à verser du <strong>mois suivant</strong>.</p>
     <div class="grille-cartes" id="zone-depenses"></div>
 
-    <h2 class="section-titre">Salaires & répartition</h2>
-    <p style="color:var(--ink-soft);font-size:0.9rem;margin-top:-6px;">Sert de base au calcul de la répartition "au prorata" sur les autres postes. Enregistré une fois, valable pour tous les mois jusqu'à modification.</p>
-    <div class="grille-cartes" id="zone-salaires"></div>
-
-    <h2 class="section-titre">Carburant</h2>
-    <p style="color:var(--ink-soft);font-size:0.9rem;margin-top:-6px;">Coût = distance aller × 2 × jours de travail × consommation ÷ 100 × prix du litre.</p>
-    <div class="grille-cartes" id="zone-transport"></div>
+    <h2 class="section-titre">Cumul des dépenses par enfant</h2>
+    <div class="grille-cartes" id="zone-charges-enfants-resume"></div>
 
     <h2 class="section-titre">Charges fixes</h2>
     <p style="color:var(--ink-soft);font-size:0.9rem;margin-top:-6px;">Utilise un montant négatif pour une entrée d'argent (CAF, aides...) — elle viendra en déduction du total à répartir.</p>
@@ -115,11 +110,17 @@
       </form>
     </div>
 
-    <h2 class="section-titre">Charges enfants (cantine, garderie...) — historique</h2>
+    <h2 class="section-titre">Charges enfants (cantine, garderie...) — détail</h2>
     <p style="color:var(--ink-soft);font-size:0.9rem;margin-top:-6px;">Jours ouvrés du mois calculés automatiquement (lundi-vendredi), ajustables si besoin (absences, jours en plus...).</p>
-    <div class="grille-cartes" id="zone-charges-enfants-resume"></div>
-    <h3 style="font-size:0.95rem;margin:16px 0 8px;">Détail par charge</h3>
     <div class="grille-cartes" id="zone-charges-enfants"></div>
+
+    <h2 class="section-titre">Salaires & répartition</h2>
+    <p style="color:var(--ink-soft);font-size:0.9rem;margin-top:-6px;">Sert de base au calcul de la répartition "au prorata" sur les autres postes. Enregistré une fois, valable pour tous les mois jusqu'à modification.</p>
+    <div class="grille-cartes" id="zone-salaires"></div>
+
+    <h2 class="section-titre">Carburant</h2>
+    <p style="color:var(--ink-soft);font-size:0.9rem;margin-top:-6px;">Coût = distance aller × 2 × jours de travail × consommation ÷ 100 × prix du litre.</p>
+    <div class="grille-cartes" id="zone-transport"></div>
 
   </main>
 </div>
