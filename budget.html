@@ -72,7 +72,7 @@
     <div class="grille-cartes" id="zone-salaires"></div>
 
     <h2 class="section-titre">Carburant</h2>
-    <p style="color:var(--ink-soft);font-size:0.9rem;margin-top:-6px;">Jours de travail du mois calculés automatiquement (jours ouvrés lundi-vendredi), ajustables si besoin. Coût = distance aller × 2 × jours retenus × consommation ÷ 100 × prix du litre.</p>
+    <p style="color:var(--ink-soft);font-size:0.9rem;margin-top:-6px;">Coût = distance aller × 2 × jours de travail × consommation ÷ 100 × prix du litre.</p>
     <div class="grille-cartes" id="zone-transport"></div>
 
     <h2 class="section-titre">Charges fixes</h2>
@@ -224,42 +224,26 @@ async function enregistrerSalaire(e, membreId) {
 
 // ---------- Transport / carburant ----------
 async function chargerTransport() {
-  const mois = moisAAAAMM(moisConsulte());
-  const joursBase = joursOuvresDuMois(moisConsulte());
   const { data } = await sb.from('budget_transport').select('*');
   const parId = Object.fromEntries((data || []).map(t => [t.membre_id, t]));
-  const { data: ajustData } = await sb.from('budget_transport_ajustement').select('*').eq('mois', mois);
-  const ajustParId = Object.fromEntries((ajustData || []).map(a => [a.membre_id, a.ajustement_jours]));
 
   document.getElementById('zone-transport').innerHTML = _adultes.map(m => {
-    const t = parId[m.id] || { km_aller: 0, consommation_l_100km: 6, prix_litre: 1.8 };
-    const ajustement = ajustParId[m.id] || 0;
-    const joursRetenus = Math.max(0, joursBase + ajustement);
-    const cout = t.km_aller * 2 * joursRetenus * (t.consommation_l_100km / 100) * t.prix_litre;
+    const t = parId[m.id] || { km_aller: 0, jours_travail_mois: 20, consommation_l_100km: 6, prix_litre: 1.8 };
+    const cout = t.km_aller * 2 * t.jours_travail_mois * (t.consommation_l_100km / 100) * t.prix_litre;
     return `
       <div class="carte" style="border-left:4px solid ${m.couleur}">
         <strong>${m.icone} ${m.nom}</strong>
         <form class="mini" onsubmit="return enregistrerTransport(event, '${m.id}')">
           <label style="font-size:0.8rem;">Km aller <input type="number" step="0.1" name="km" value="${t.km_aller}" style="width:70px;"></label>
+          <label style="font-size:0.8rem;">Jours/mois <input type="number" step="0.5" name="jours" value="${t.jours_travail_mois}" style="width:60px;"></label>
           <label style="font-size:0.8rem;">L/100km <input type="number" step="0.1" name="conso" value="${t.consommation_l_100km}" style="width:60px;"></label>
           <label style="font-size:0.8rem;">Prix/L € <input type="number" step="0.01" name="prix" value="${t.prix_litre}" style="width:70px;"></label>
           <button class="btn" type="submit">Enregistrer</button>
         </form>
-        <p style="margin-top:10px;font-size:0.85rem;color:var(--ink-soft);">Jours ouvrés ce mois : ${joursBase}</p>
-        <label style="font-size:0.85rem;">Ajustement (+/-) :
-          <input type="number" step="1" value="${ajustement}" style="width:60px;" onchange="ajusterJoursTransport('${m.id}', '${mois}', this.value)">
-        </label>
-        <p style="margin:6px 0;font-size:0.85rem;color:var(--ink-soft);">Jours retenus : <strong>${joursRetenus}</strong></p>
-        <p style="margin-top:6px;"><strong>${cout.toFixed(2)} € / mois</strong> <span class="badge-membre" style="background:var(--ink-soft);">Prorata</span></p>
+        <p style="margin-top:8px;"><strong>${cout.toFixed(2)} € / mois</strong> <span class="badge-membre" style="background:var(--ink-soft);">Prorata</span></p>
       </div>
     `;
   }).join('');
-}
-
-async function ajusterJoursTransport(membreId, mois, valeur) {
-  await sb.from('budget_transport_ajustement').upsert({ membre_id: membreId, mois, ajustement_jours: parseFloat(valeur) || 0 }, { onConflict: 'membre_id,mois' });
-  await chargerTransport();
-  chargerResume();
 }
 
 async function enregistrerTransport(e, membreId) {
@@ -267,6 +251,7 @@ async function enregistrerTransport(e, membreId) {
   await sb.from('budget_transport').upsert({
     membre_id: membreId,
     km_aller: parseFloat(e.target.km.value) || 0,
+    jours_travail_mois: parseFloat(e.target.jours.value) || 0,
     consommation_l_100km: parseFloat(e.target.conso.value) || 0,
     prix_litre: parseFloat(e.target.prix.value) || 0
   });
@@ -474,8 +459,6 @@ async function chargerResume() {
   const joursBase = joursOuvresDuMois(moisConsulte());
   const { data: transport } = await sb.from('budget_transport').select('*');
   const transportParId = Object.fromEntries((transport || []).map(t => [t.membre_id, t]));
-  const { data: ajustTransport } = await sb.from('budget_transport_ajustement').select('*').eq('mois', mois);
-  const ajustTransportParId = Object.fromEntries((ajustTransport || []).map(a => [a.membre_id, a.ajustement_jours]));
   const { data: ajustEnfants } = await sb.from('budget_charges_enfants_ajustement').select('*').eq('mois', mois);
   const ajustEnfantsParId = Object.fromEntries((ajustEnfants || []).map(a => [a.charge_id, a.ajustement_jours]));
   const { data: depenses } = await sb.from('budget_depenses_variables').select('*')
@@ -492,10 +475,7 @@ async function chargerResume() {
   });
   _adultes.forEach(m => {
     const t = transportParId[m.id];
-    if (t) {
-      const joursRetenus = Math.max(0, joursBase + (ajustTransportParId[m.id] || 0));
-      postes.push({ montant: t.km_aller * 2 * joursRetenus * (t.consommation_l_100km / 100) * t.prix_litre, repartition: 'prorata' });
-    }
+    if (t) postes.push({ montant: t.km_aller * 2 * t.jours_travail_mois * (t.consommation_l_100km / 100) * t.prix_litre, repartition: 'prorata' });
   });
   (depenses || []).forEach(d => postes.push({ montant: d.montant, repartition: d.repartition }));
 
