@@ -72,7 +72,7 @@
     <div class="grille-cartes" id="zone-salaires"></div>
 
     <h2 class="section-titre">Carburant</h2>
-    <p style="color:var(--ink-soft);font-size:0.9rem;margin-top:-6px;">Calculé automatiquement : distance aller × 2 × jours de travail × consommation ÷ 100 × prix du litre.</p>
+    <p style="color:var(--ink-soft);font-size:0.9rem;margin-top:-6px;">Jours de travail du mois calculés automatiquement (jours ouvrés lundi-vendredi), ajustables si besoin. Coût = distance aller × 2 × jours retenus × consommation ÷ 100 × prix du litre.</p>
     <div class="grille-cartes" id="zone-transport"></div>
 
     <h2 class="section-titre">Charges fixes</h2>
@@ -94,14 +94,13 @@
     </div>
 
     <h2 class="section-titre">Charges enfants (cantine, garderie...)</h2>
-    <p style="color:var(--ink-soft);font-size:0.9rem;margin-top:-6px;">Calculé automatiquement : nombre de jours par mois × prix à la journée.</p>
+    <p style="color:var(--ink-soft);font-size:0.9rem;margin-top:-6px;">Jours ouvrés du mois calculés automatiquement (lundi-vendredi), ajustables si besoin (absences, jours en plus...).</p>
     <div class="grille-cartes" id="zone-charges-enfants"></div>
     <div class="carte" style="margin-top:12px;">
       <strong id="ce-titre-form">Ajouter une charge enfant</strong>
       <form class="mini" id="form-charge-enfant">
         <input type="hidden" id="ce-id">
         <input type="text" id="ce-libelle" placeholder="Ex: Cantine Baptiste" required>
-        <input type="number" step="0.5" id="ce-jours" placeholder="Jours / mois" required>
         <input type="number" step="0.01" id="ce-prix" placeholder="Prix / jour €" required>
         <select id="ce-repartition">
           <option value="prorata">Au prorata du salaire</option>
@@ -142,12 +141,30 @@ function majLabelMoisBudget() {
 function deplacerMoisBudget(delta) {
   _offsetMoisBudget += delta;
   majLabelMoisBudget();
-  chargerSalaires().then(() => { chargerDepenses(); chargerResume(); });
+  chargerSalaires().then(() => {
+    chargerTransport();
+    chargerChargesEnfants().then(() => { chargerDepenses(); chargerResume(); });
+  });
 }
 function allerMoisActuelBudget() {
   _offsetMoisBudget = 0;
   majLabelMoisBudget();
-  chargerSalaires().then(() => { chargerDepenses(); chargerResume(); });
+  chargerSalaires().then(() => {
+    chargerTransport();
+    chargerChargesEnfants().then(() => { chargerDepenses(); chargerResume(); });
+  });
+}
+
+function joursOuvresDuMois(premierJour) {
+  const annee = premierJour.getFullYear();
+  const mois = premierJour.getMonth();
+  const nbJours = new Date(annee, mois + 1, 0).getDate();
+  let compte = 0;
+  for (let j = 1; j <= nbJours; j++) {
+    const jourSemaine = new Date(annee, mois, j).getDay();
+    if (jourSemaine !== 0 && jourSemaine !== 6) compte++;
+  }
+  return compte;
 }
 
 function calculerPourcentages() {
@@ -207,26 +224,42 @@ async function enregistrerSalaire(e, membreId) {
 
 // ---------- Transport / carburant ----------
 async function chargerTransport() {
+  const mois = moisAAAAMM(moisConsulte());
+  const joursBase = joursOuvresDuMois(moisConsulte());
   const { data } = await sb.from('budget_transport').select('*');
   const parId = Object.fromEntries((data || []).map(t => [t.membre_id, t]));
+  const { data: ajustData } = await sb.from('budget_transport_ajustement').select('*').eq('mois', mois);
+  const ajustParId = Object.fromEntries((ajustData || []).map(a => [a.membre_id, a.ajustement_jours]));
 
   document.getElementById('zone-transport').innerHTML = _adultes.map(m => {
-    const t = parId[m.id] || { km_aller: 0, jours_travail_mois: 20, consommation_l_100km: 6, prix_litre: 1.8 };
-    const cout = t.km_aller * 2 * t.jours_travail_mois * (t.consommation_l_100km / 100) * t.prix_litre;
+    const t = parId[m.id] || { km_aller: 0, consommation_l_100km: 6, prix_litre: 1.8 };
+    const ajustement = ajustParId[m.id] || 0;
+    const joursRetenus = Math.max(0, joursBase + ajustement);
+    const cout = t.km_aller * 2 * joursRetenus * (t.consommation_l_100km / 100) * t.prix_litre;
     return `
       <div class="carte" style="border-left:4px solid ${m.couleur}">
         <strong>${m.icone} ${m.nom}</strong>
         <form class="mini" onsubmit="return enregistrerTransport(event, '${m.id}')">
           <label style="font-size:0.8rem;">Km aller <input type="number" step="0.1" name="km" value="${t.km_aller}" style="width:70px;"></label>
-          <label style="font-size:0.8rem;">Jours/mois <input type="number" step="0.5" name="jours" value="${t.jours_travail_mois}" style="width:60px;"></label>
           <label style="font-size:0.8rem;">L/100km <input type="number" step="0.1" name="conso" value="${t.consommation_l_100km}" style="width:60px;"></label>
           <label style="font-size:0.8rem;">Prix/L € <input type="number" step="0.01" name="prix" value="${t.prix_litre}" style="width:70px;"></label>
           <button class="btn" type="submit">Enregistrer</button>
         </form>
-        <p style="margin-top:8px;"><strong>${cout.toFixed(2)} € / mois</strong></p>
+        <p style="margin-top:10px;font-size:0.85rem;color:var(--ink-soft);">Jours ouvrés ce mois : ${joursBase}</p>
+        <label style="font-size:0.85rem;">Ajustement (+/-) :
+          <input type="number" step="1" value="${ajustement}" style="width:60px;" onchange="ajusterJoursTransport('${m.id}', '${mois}', this.value)">
+        </label>
+        <p style="margin:6px 0;font-size:0.85rem;color:var(--ink-soft);">Jours retenus : <strong>${joursRetenus}</strong></p>
+        <p style="margin-top:6px;"><strong>${cout.toFixed(2)} € / mois</strong></p>
       </div>
     `;
   }).join('');
+}
+
+async function ajusterJoursTransport(membreId, mois, valeur) {
+  await sb.from('budget_transport_ajustement').upsert({ membre_id: membreId, mois, ajustement_jours: parseFloat(valeur) || 0 }, { onConflict: 'membre_id,mois' });
+  await chargerTransport();
+  chargerResume();
 }
 
 async function enregistrerTransport(e, membreId) {
@@ -234,7 +267,6 @@ async function enregistrerTransport(e, membreId) {
   await sb.from('budget_transport').upsert({
     membre_id: membreId,
     km_aller: parseFloat(e.target.km.value) || 0,
-    jours_travail_mois: parseFloat(e.target.jours.value) || 0,
     consommation_l_100km: parseFloat(e.target.conso.value) || 0,
     prix_litre: parseFloat(e.target.prix.value) || 0
   });
@@ -303,14 +335,28 @@ document.getElementById('form-charge-fixe').addEventListener('submit', async (e)
 // ---------- Charges enfants ----------
 let _chargesEnfantsCache = [];
 async function chargerChargesEnfants() {
+  const mois = moisAAAAMM(moisConsulte());
+  const joursBase = joursOuvresDuMois(moisConsulte());
   const { data } = await sb.from('budget_charges_enfants').select('*').eq('actif', true).order('libelle');
   _chargesEnfantsCache = data || [];
+  const { data: ajustData } = await sb.from('budget_charges_enfants_ajustement').select('*').eq('mois', mois);
+  const ajustParId = Object.fromEntries((ajustData || []).map(a => [a.charge_id, a.ajustement_jours]));
+
   document.getElementById('zone-charges-enfants').innerHTML = _chargesEnfantsCache.map(c => {
-    const cout = c.jours_par_mois * c.prix_jour;
+    const ajustement = ajustParId[c.id] || 0;
+    const joursRetenus = Math.max(0, joursBase + ajustement);
+    const cout = joursRetenus * c.prix_jour;
+    c._joursRetenus = joursRetenus;
+    c._cout = cout;
     return `
       <div class="carte">
         <strong>${c.libelle}</strong><br>
-        <span style="color:var(--ink-soft);font-size:0.85rem;">${c.jours_par_mois} j × ${c.prix_jour.toFixed(2)} €</span><br>
+        <span style="color:var(--ink-soft);font-size:0.85rem;">${c.prix_jour.toFixed(2)} € / jour</span>
+        <p style="margin:8px 0 2px;font-size:0.85rem;color:var(--ink-soft);">Jours ouvrés ce mois : ${joursBase}</p>
+        <label style="font-size:0.85rem;">Ajustement (+/-) :
+          <input type="number" step="1" value="${ajustement}" style="width:60px;" onchange="ajusterJoursChargeEnfant('${c.id}', '${mois}', this.value)">
+        </label>
+        <p style="margin:6px 0;font-size:0.85rem;color:var(--ink-soft);">Jours retenus : <strong>${joursRetenus}</strong></p>
         <span style="font-size:1.2rem;font-weight:800;">${cout.toFixed(2)} €</span>
         <span class="badge-membre" style="background:var(--ink-soft);margin-left:6px;">${c.repartition === 'prorata' ? 'Prorata' : '50/50'}</span>
         <div style="margin-top:10px;display:flex;gap:6px;">
@@ -321,12 +367,18 @@ async function chargerChargesEnfants() {
     `;
   }).join('') || '<div class="vide">Aucune charge enfant pour l\'instant.</div>';
 }
+
+async function ajusterJoursChargeEnfant(chargeId, mois, valeur) {
+  await sb.from('budget_charges_enfants_ajustement').upsert({ charge_id: chargeId, mois, ajustement_jours: parseFloat(valeur) || 0 }, { onConflict: 'charge_id,mois' });
+  await chargerChargesEnfants();
+  chargerResume();
+}
+
 function modifierChargeEnfant(id) {
   const c = _chargesEnfantsCache.find(x => x.id === id);
   if (!c) return;
   document.getElementById('ce-id').value = c.id;
   document.getElementById('ce-libelle').value = c.libelle;
-  document.getElementById('ce-jours').value = c.jours_par_mois;
   document.getElementById('ce-prix').value = c.prix_jour;
   document.getElementById('ce-repartition').value = c.repartition;
   document.getElementById('ce-titre-form').textContent = 'Modifier cette charge';
@@ -351,7 +403,6 @@ document.getElementById('form-charge-enfant').addEventListener('submit', async (
   const id = document.getElementById('ce-id').value;
   const payload = {
     libelle: document.getElementById('ce-libelle').value,
-    jours_par_mois: parseFloat(document.getElementById('ce-jours').value) || 0,
     prix_jour: parseFloat(document.getElementById('ce-prix').value) || 0,
     repartition: document.getElementById('ce-repartition').value
   };
@@ -420,8 +471,13 @@ async function chargerResume() {
     return;
   }
   const mois = moisAAAAMM(moisConsulte());
+  const joursBase = joursOuvresDuMois(moisConsulte());
   const { data: transport } = await sb.from('budget_transport').select('*');
   const transportParId = Object.fromEntries((transport || []).map(t => [t.membre_id, t]));
+  const { data: ajustTransport } = await sb.from('budget_transport_ajustement').select('*').eq('mois', mois);
+  const ajustTransportParId = Object.fromEntries((ajustTransport || []).map(a => [a.membre_id, a.ajustement_jours]));
+  const { data: ajustEnfants } = await sb.from('budget_charges_enfants_ajustement').select('*').eq('mois', mois);
+  const ajustEnfantsParId = Object.fromEntries((ajustEnfants || []).map(a => [a.charge_id, a.ajustement_jours]));
   const { data: depenses } = await sb.from('budget_depenses_variables').select('*')
     .gte('date', mois + '-01').lt('date', moisSuivantStr(mois));
   const { data: statutsData } = await sb.from('budget_charges_fixes_statut').select('*').eq('mois', mois);
@@ -430,10 +486,16 @@ async function chargerResume() {
   // Construit la liste des postes : {montant, repartition}
   const postes = [];
   _chargesFixesCache.forEach(c => postes.push({ montant: c.montant, repartition: c.repartition }));
-  _chargesEnfantsCache.forEach(c => postes.push({ montant: c.jours_par_mois * c.prix_jour, repartition: c.repartition }));
+  _chargesEnfantsCache.forEach(c => {
+    const joursRetenus = Math.max(0, joursBase + (ajustEnfantsParId[c.id] || 0));
+    postes.push({ montant: joursRetenus * c.prix_jour, repartition: c.repartition });
+  });
   _adultes.forEach(m => {
     const t = transportParId[m.id];
-    if (t) postes.push({ montant: t.km_aller * 2 * t.jours_travail_mois * (t.consommation_l_100km / 100) * t.prix_litre, repartition: 'prorata' });
+    if (t) {
+      const joursRetenus = Math.max(0, joursBase + (ajustTransportParId[m.id] || 0));
+      postes.push({ montant: t.km_aller * 2 * joursRetenus * (t.consommation_l_100km / 100) * t.prix_litre, repartition: 'prorata' });
+    }
   });
   (depenses || []).forEach(d => postes.push({ montant: d.montant, repartition: d.repartition }));
 
