@@ -662,7 +662,7 @@ async function chargerResume() {
             <p style="margin:2px 0;font-size:0.85rem;color:var(--ink-soft);">Dont carburant déjà couvert : ${dejaPaye[m.id].toFixed(2)} €</p>
             <p style="margin:2px 0 8px;font-size:0.85rem;color:var(--ink-soft);">Crédit/débit dépenses variables du mois précédent : ${soldeVariablePrec[m.id] >= 0 ? '+' : ''}${soldeVariablePrec[m.id].toFixed(2)} €</p>
             <p style="font-size:1.3rem;font-weight:800;color:${solde >= 0 ? 'var(--maman)' : 'var(--louis)'}">
-              ${solde >= 0 ? 'Doit verser : ' : 'A trop versé : '} ${Math.abs(solde).toFixed(2)} €
+              ${solde >= 0 ? 'Doit verser : ' : 'A trop versé : '} ${Math.ceil(Math.abs(solde))} €
             </p>
           </div>
         `;
