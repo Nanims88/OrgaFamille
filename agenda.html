@@ -60,10 +60,9 @@
     </div>
 
     <h2 class="section-titre">Événements</h2>
-    <p style="color:var(--ink-soft);font-size:0.9rem;margin-top:-6px;">Un événement ponctuel ou une période (ex: vacances). "Remplace" masque la semaine type pendant cette période pour la ou les personnes concernées ; "Vient en plus" s'affiche à côté.</p>
-    <div class="grille-cartes" id="liste-evenements"></div>
+    <p style="color:var(--ink-soft);font-size:0.9rem;margin-top:-6px;">Un événement ponctuel ou une période (ex: vacances). "Remplace" masque la semaine type pendant cette période pour la ou les personnes concernées ; "Vient en plus" s'affiche à côté. Les événements déjà passés ne sont pas affichés.</p>
 
-    <div class="carte" style="margin-top:14px;">
+    <div class="carte">
       <strong>Ajouter un événement</strong>
       <form class="mini" id="form-evenement">
         <input type="hidden" id="e-id">
@@ -83,6 +82,8 @@
         <button class="btn" type="button" id="e-annuler" style="display:none;background:var(--ink-soft);" onclick="annulerEditionEvenement()">Annuler</button>
       </form>
     </div>
+
+    <div class="grille-cartes" id="liste-evenements" style="margin-top:14px;"></div>
 
   </main>
 </div>
