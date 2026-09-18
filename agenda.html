@@ -5,6 +5,34 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Chez nous — Agenda</title>
 <link rel="stylesheet" href="assets/style.css?v=7">
+<style>
+  #liste-evenements.grille-cartes {
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 8px;
+  }
+  #liste-evenements .carte {
+    padding: 8px 10px;
+  }
+  #liste-evenements .carte strong {
+    font-size: 0.85rem;
+    line-height: 1.2;
+  }
+  #liste-evenements .carte span {
+    font-size: 0.7rem;
+  }
+  #liste-evenements .carte br + span,
+  #liste-evenements .carte div {
+    margin-top: 3px !important;
+  }
+  #liste-evenements .carte .badge-membre {
+    padding: 2px 8px;
+    font-size: 0.68rem;
+  }
+  #liste-evenements .carte .btn {
+    padding: 4px 8px;
+    font-size: 0.68rem;
+  }
+</style>
 </head>
 <body>
 
