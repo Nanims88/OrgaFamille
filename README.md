@@ -53,6 +53,7 @@ Pour changer le mot de passe, voir les instructions en commentaire dans `assets/
 | `budget_transport` | `budget.html` | Suivi du carburant/transport |
 | `budget_depenses_variables` | `budget.html` | Historique des dépenses variables du mois |
 | `budget_profils` | `budget.html` | Profils/répartition liés au budget (salaires, parts) |
+| `budget_solde_compte` | `budget.html` | Solde du compte commun en début de mois (figé par mois, ajustable ; suggéré automatiquement à partir du mois précédent) |
 
 ## Démarrer
 

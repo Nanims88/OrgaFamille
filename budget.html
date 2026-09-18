@@ -72,6 +72,16 @@
       <button class="btn" id="budget-mois-label" onclick="allerMoisActuelBudget()">Ce mois</button>
       <button class="btn" onclick="deplacerMoisBudget(1)">▶</button>
     </div>
+
+    <div class="carte" id="zone-solde-compte" style="margin-top:12px;">
+      <strong>💰 Solde du compte commun en début de mois</strong>
+      <form class="mini" id="form-solde-compte">
+        <input type="number" step="0.01" id="sc-solde" placeholder="Solde €" required>
+        <button class="btn" type="submit">Enregistrer</button>
+      </form>
+      <p id="sc-suggestion" style="margin-top:6px;color:var(--ink-soft);font-size:0.8rem;font-style:italic;display:none;"></p>
+    </div>
+
     <div class="carte" id="zone-resume-total" style="margin-top:12px;"></div>
 
     <h3 style="font-size:1.05rem;margin:20px 0 8px;">Ajouter une dépense variable</h3>
@@ -184,7 +194,10 @@ function deplacerMoisBudget(delta) {
   majLabelMoisBudget();
   chargerSalaires().then(() => {
     chargerTransport();
-    Promise.all([chargerChargesFixes(), chargerChargesEnfants()]).then(() => { chargerDepenses(); chargerResume(); });
+    Promise.all([chargerChargesFixes(), chargerChargesEnfants()]).then(() => {
+      chargerDepenses();
+      chargerSoldeCompte().then(chargerResume);
+    });
   });
 }
 function allerMoisActuelBudget() {
@@ -192,7 +205,10 @@ function allerMoisActuelBudget() {
   majLabelMoisBudget();
   chargerSalaires().then(() => {
     chargerTransport();
-    Promise.all([chargerChargesFixes(), chargerChargesEnfants()]).then(() => { chargerDepenses(); chargerResume(); });
+    Promise.all([chargerChargesFixes(), chargerChargesEnfants()]).then(() => {
+      chargerDepenses();
+      chargerSoldeCompte().then(chargerResume);
+    });
   });
 }
 
@@ -230,10 +246,13 @@ function labelRepartition(rep) {
   const m = _adultes.find(a => a.id === rep);
   return m ? `100% ${m.nom}` : rep;
 }
-function tauxRepartition(repartition, membreId) {
-  if (repartition === 'prorata') return _pourcentages[membreId] || 0;
+function tauxRepartitionAvec(repartition, membreId, pourcentages) {
+  if (repartition === 'prorata') return pourcentages[membreId] || 0;
   if (repartition === '50-50') return 1 / _adultes.length;
   return repartition === membreId ? 1 : 0; // 100% à la charge d'un membre précis
+}
+function tauxRepartition(repartition, membreId) {
+  return tauxRepartitionAvec(repartition, membreId, _pourcentages);
 }
 
 function calculerPourcentages() {
@@ -608,31 +627,33 @@ function moisPrecedentStr(aaaammStr) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
-// ---------- Résumé du mois ----------
-async function chargerResume() {
-  if (_adultes.length < 2) {
-    document.getElementById('zone-resume').innerHTML = '<div class="vide">Configure au moins deux membres "adulte" dans Réglages pour voir le résumé.</div>';
-    return;
-  }
-  const mois = moisAAAAMM(moisConsulte());
+// ---------- Flux d'un mois (charges à répartir, part de chacun) — réutilisable pour un mois quelconque ----------
+function premierJourDuMois(mois) {
+  const [a, m] = mois.split('-').map(Number);
+  return new Date(a, m - 1, 1);
+}
+
+async function calculerFluxMois(mois) {
   const moisPrec = moisPrecedentStr(mois);
-  const joursBase = joursOuvresDuMois(moisConsulte());
+  const joursBase = joursOuvresDuMois(premierJourDuMois(mois));
 
-  const { data: transport } = await sb.from('budget_transport').select('*');
-  const transportParId = Object.fromEntries((transport || []).map(t => [t.membre_id, t]));
-  const { data: ajustEnfants } = await sb.from('budget_charges_enfants_ajustement').select('*').eq('mois', mois);
-  const ajustEnfantsParId = Object.fromEntries((ajustEnfants || []).map(a => [a.charge_id, a.ajustement_jours]));
-  const { data: statutsData } = await sb.from('budget_charges_fixes_statut').select('*').eq('mois', mois);
-  const statutParCharge = Object.fromEntries((statutsData || []).map(s => [s.charge_id, s.paye]));
+  const [transportRes, ajustEnfantsRes, montantsChargesFixes, { pourcentages }, depensesPrecRes, { pourcentages: pourcentagesPrec }] = await Promise.all([
+    sb.from('budget_transport').select('*'),
+    sb.from('budget_charges_enfants_ajustement').select('*').eq('mois', mois),
+    resoudreMontantsChargesFixes(mois),
+    resoudreSalairesEtPourcentages(mois),
+    // Dépenses variables DU MOIS PRÉCÉDENT — c'est ce qui vient créditer/débiter le versement de ce mois-ci
+    sb.from('budget_depenses_variables').select('*').gte('date', moisPrec + '-01').lt('date', mois + '-01'),
+    resoudreSalairesEtPourcentages(moisPrec)
+  ]);
 
-  // Dépenses variables DU MOIS PRÉCÉDENT — c'est ce qui vient créditer/débiter le versement de ce mois-ci
-  const { data: depensesPrec } = await sb.from('budget_depenses_variables').select('*')
-    .gte('date', moisPrec + '-01').lt('date', mois + '-01');
-  const { pourcentages: pourcentagesPrec } = await resoudreSalairesEtPourcentages(moisPrec);
+  const transportParId = Object.fromEntries((transportRes.data || []).map(t => [t.membre_id, t]));
+  const ajustEnfantsParId = Object.fromEntries((ajustEnfantsRes.data || []).map(a => [a.charge_id, a.ajustement_jours]));
+  const depensesPrec = depensesPrecRes.data || [];
 
   // ---- Pot du mois consulté : charges fixes + charges enfants + carburant ----
   const postes = [];
-  _chargesFixesCache.forEach(c => postes.push({ montant: _montantsChargesFixes[c.id].montant, repartition: c.repartition }));
+  _chargesFixesCache.forEach(c => postes.push({ montant: montantsChargesFixes[c.id].montant, repartition: c.repartition }));
   _chargesEnfantsCache.forEach(c => {
     const joursRetenus = Math.max(0, joursBase + (ajustEnfantsParId[c.id] || 0));
     postes.push({ montant: joursRetenus * c.prix_jour, repartition: c.repartition });
@@ -646,7 +667,7 @@ async function chargerResume() {
   const partTheorique = {};
   _adultes.forEach(m => partTheorique[m.id] = 0);
   postes.forEach(p => {
-    _adultes.forEach(m => { partTheorique[m.id] += p.montant * tauxRepartition(p.repartition, m.id); });
+    _adultes.forEach(m => { partTheorique[m.id] += p.montant * tauxRepartitionAvec(p.repartition, m.id, pourcentages); });
   });
 
   // Carburant : chacun est déjà crédité de son propre montant (même mois)
@@ -660,24 +681,78 @@ async function chargerResume() {
   // ---- Solde des dépenses variables du mois précédent (crédité/débité sur ce mois) ----
   const soldeVariablePrec = {};
   _adultes.forEach(m => soldeVariablePrec[m.id] = 0);
-  (depensesPrec || []).forEach(d => {
-    _adultes.forEach(m => {
-      const taux = d.repartition === 'prorata' ? (pourcentagesPrec[m.id] || 0)
-        : d.repartition === '50-50' ? (1 / _adultes.length)
-        : (d.repartition === m.id ? 1 : 0);
-      soldeVariablePrec[m.id] += d.montant * taux;
-    });
+  depensesPrec.forEach(d => {
+    _adultes.forEach(m => { soldeVariablePrec[m.id] += d.montant * tauxRepartitionAvec(d.repartition, m.id, pourcentagesPrec); });
   });
-  (depensesPrec || []).forEach(d => { if (soldeVariablePrec[d.membre_id] !== undefined) soldeVariablePrec[d.membre_id] -= d.montant; });
+  depensesPrec.forEach(d => { if (soldeVariablePrec[d.membre_id] !== undefined) soldeVariablePrec[d.membre_id] -= d.montant; });
 
-  const totalDepensesPrec = (depensesPrec || []).reduce((s, d) => s + d.montant, 0);
+  const solde = {};
+  _adultes.forEach(m => { solde[m.id] = partTheorique[m.id] - dejaPaye[m.id] + soldeVariablePrec[m.id]; });
+
+  const totalDepensesPrec = depensesPrec.reduce((s, d) => s + d.montant, 0);
+  // Total réellement encaissé sur le compte commun : chacun verse l'arrondi supérieur de ce qu'il doit ; un "trop versé" n'est pas retiré du compte.
+  const totalAVerser = Object.values(solde).reduce((s, v) => s + Math.ceil(Math.max(0, v)), 0);
+
+  return { totalMois, partTheorique, dejaPaye, soldeVariablePrec, solde, totalDepensesPrec, totalAVerser };
+}
+
+// ---------- Solde du compte commun (figé par mois, ajustable ; suggéré à partir du mois précédent) ----------
+let _soldeDebutMoisCourant = 0;
+
+async function resoudreSoldeCompte(mois) {
+  const { data: exact } = await sb.from('budget_solde_compte').select('*').eq('mois', mois).maybeSingle();
+  if (exact) return { solde: exact.solde, suggestion: false };
+
+  const moisPrec = moisPrecedentStr(mois);
+  const { data: exactPrec } = await sb.from('budget_solde_compte').select('*').eq('mois', moisPrec).maybeSingle();
+  const soldeDebutPrec = exactPrec ? exactPrec.solde : 0;
+  const { totalMois: totalMoisPrec, totalAVerser: totalAVerserPrec } = await calculerFluxMois(moisPrec);
+
+  return { solde: soldeDebutPrec - totalMoisPrec + totalAVerserPrec, suggestion: true };
+}
+
+async function chargerSoldeCompte() {
+  const mois = moisAAAAMM(moisConsulte());
+  const { solde, suggestion } = await resoudreSoldeCompte(mois);
+  _soldeDebutMoisCourant = solde;
+  document.getElementById('sc-solde').value = solde.toFixed(2);
+  const info = document.getElementById('sc-suggestion');
+  info.style.display = suggestion ? 'block' : 'none';
+  info.textContent = suggestion ? 'Estimation calculée à partir du solde et des mouvements du mois précédent — ajuste puis enregistre pour coller à la réalité du compte.' : '';
+}
+
+document.getElementById('form-solde-compte').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const mois = moisAAAAMM(moisConsulte());
+  const solde = parseFloat(document.getElementById('sc-solde').value) || 0;
+  await sb.from('budget_solde_compte').upsert({ mois, solde }, { onConflict: 'mois' });
+  _soldeDebutMoisCourant = solde;
+  document.getElementById('sc-suggestion').style.display = 'none';
+  chargerResume();
+});
+
+// ---------- Résumé du mois ----------
+async function chargerResume() {
+  if (_adultes.length < 2) {
+    document.getElementById('zone-resume-total').innerHTML = '<div class="vide">Configure au moins deux membres "adulte" dans Réglages pour voir le résumé.</div>';
+    return;
+  }
+  const mois = moisAAAAMM(moisConsulte());
+  const moisPrec = moisPrecedentStr(mois);
+  const { data: statutsData } = await sb.from('budget_charges_fixes_statut').select('*').eq('mois', mois);
+  const statutParCharge = Object.fromEntries((statutsData || []).map(s => [s.charge_id, s.paye]));
+
+  const { totalMois, partTheorique, dejaPaye, soldeVariablePrec, solde, totalDepensesPrec, totalAVerser } = await calculerFluxMois(mois);
+  const soldeFinMois = _soldeDebutMoisCourant - totalMois + totalAVerser;
 
   const resteAPrelever = _chargesFixesCache.reduce((s, c) => s + (statutParCharge[c.id] ? 0 : _montantsChargesFixes[c.id].montant), 0);
 
   document.getElementById('zone-resume-total').innerHTML = `
+    <p><strong>Solde du compte commun en début de mois :</strong> ${_soldeDebutMoisCourant.toFixed(2)} €</p>
     <p><strong>Charges du mois (fixes + carburant + enfants) :</strong> ${totalMois.toFixed(2)} €</p>
     <p style="margin-top:2px;color:var(--ink-soft);font-size:0.85rem;">Dépenses variables saisies en ${new Date(moisPrec + '-01').toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })} (créditées ce mois-ci) : ${totalDepensesPrec.toFixed(2)} €</p>
     <p style="margin-top:4px;"><strong>Reste à prélever sur le compte</strong> (charges fixes non encore pointées) : <span style="font-weight:800;">${resteAPrelever.toFixed(2)} €</span></p>
+    <p style="margin-top:8px;"><strong>Solde prévisionnel en fin de mois</strong> (avec les ${totalAVerser.toFixed(2)} € à verser par chacun) : <span style="font-weight:800;color:${soldeFinMois >= 0 ? 'var(--ink)' : 'var(--louis)'}">${soldeFinMois.toFixed(2)} €</span></p>
   `;
 
   document.getElementById('zone-resume-fixes').innerHTML = `
@@ -694,20 +769,17 @@ async function chargerResume() {
   `;
 
   document.getElementById('zone-resume-personnes').innerHTML = `
-      ${_adultes.map(m => {
-        const solde = partTheorique[m.id] - dejaPaye[m.id] + soldeVariablePrec[m.id];
-        return `
+      ${_adultes.map(m => `
           <div class="carte" style="border-left:4px solid ${m.couleur}">
             <strong>${m.icone} ${m.nom}</strong>
             <p style="margin:8px 0 2px;font-size:0.85rem;color:var(--ink-soft);">Part théorique (charges + carburant) : ${partTheorique[m.id].toFixed(2)} €</p>
             <p style="margin:2px 0;font-size:0.85rem;color:var(--ink-soft);">Dont carburant déjà couvert : ${dejaPaye[m.id].toFixed(2)} €</p>
             <p style="margin:2px 0 8px;font-size:0.85rem;color:var(--ink-soft);">Crédit/débit dépenses variables du mois précédent : ${soldeVariablePrec[m.id] >= 0 ? '+' : ''}${soldeVariablePrec[m.id].toFixed(2)} €</p>
-            <p style="font-size:1.3rem;font-weight:800;color:${solde >= 0 ? 'var(--maman)' : 'var(--louis)'}">
-              ${solde >= 0 ? 'Doit verser : ' : 'A trop versé : '} ${Math.ceil(Math.abs(solde))} €
+            <p style="font-size:1.3rem;font-weight:800;color:${solde[m.id] >= 0 ? 'var(--maman)' : 'var(--louis)'}">
+              ${solde[m.id] >= 0 ? 'Doit verser : ' : 'A trop versé : '} ${Math.ceil(Math.abs(solde[m.id]))} €
             </p>
           </div>
-        `;
-      }).join('')}
+        `).join('')}
   `;
 }
 
@@ -723,6 +795,7 @@ async function initPage() {
   await Promise.all([chargerTransport(), chargerChargesFixes(), chargerChargesEnfants()]);
   majLabelMoisBudget();
   await chargerDepenses();
+  await chargerSoldeCompte();
   chargerResume();
 }
 </script>
