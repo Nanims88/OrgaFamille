@@ -5,6 +5,34 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Chez nous — Tâches</title>
 <link rel="stylesheet" href="assets/style.css?v=7">
+<style>
+  #liste-taches.grille-cartes, #liste-archives .grille-cartes {
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 8px;
+  }
+  #liste-taches .carte, #liste-archives .carte {
+    padding: 10px 12px;
+  }
+  #liste-taches .icone-lg, #liste-archives .icone-lg {
+    width: 26px; height: 26px;
+    font-size: 0.95rem;
+    margin-bottom: 4px;
+  }
+  #liste-taches strong, #liste-archives strong {
+    font-size: 0.85rem;
+    line-height: 1.2;
+  }
+  #liste-taches .carte span, #liste-archives .carte span {
+    font-size: 0.72rem;
+  }
+  #liste-taches .carte .btn, #liste-archives .carte .btn {
+    padding: 5px 9px;
+    font-size: 0.72rem;
+  }
+  #liste-taches .carte > div:last-child, #liste-archives .carte > div:last-child {
+    margin-top: 6px !important;
+  }
+</style>
 </head>
 <body>
 
