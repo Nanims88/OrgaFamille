@@ -5,6 +5,35 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Chez nous — Budget</title>
 <link rel="stylesheet" href="assets/style.css?v=7">
+<style>
+  #zone-charges-fixes.grille-cartes {
+    gap: 8px;
+  }
+  #zone-charges-fixes .carte {
+    padding: 10px 12px;
+  }
+  #zone-charges-fixes .carte strong {
+    font-size: 0.9rem;
+  }
+  #zone-charges-fixes .carte > span {
+    font-size: 1rem !important;
+  }
+  #zone-charges-fixes .carte .badge-membre {
+    padding: 2px 8px;
+    font-size: 0.68rem;
+  }
+  #zone-charges-fixes .carte p {
+    margin: 4px 0 !important;
+    font-size: 0.72rem !important;
+  }
+  #zone-charges-fixes .carte div {
+    margin-top: 6px !important;
+  }
+  #zone-charges-fixes .carte .btn {
+    padding: 4px 8px;
+    font-size: 0.68rem;
+  }
+</style>
 </head>
 <body>
 
@@ -90,8 +119,7 @@
 
     <h2 class="section-titre">Charges fixes</h2>
     <p style="color:var(--ink-soft);font-size:0.9rem;margin-top:-6px;">Utilise un montant négatif pour une entrée d'argent (CAF, aides...) — elle viendra en déduction du total à répartir.</p>
-    <div class="grille-cartes" id="zone-charges-fixes"></div>
-    <div class="carte" style="margin-top:12px;">
+    <div class="carte">
       <strong id="cf-titre-form">Ajouter une charge fixe</strong>
       <form class="mini" id="form-charge-fixe">
         <input type="hidden" id="cf-id">
@@ -105,6 +133,7 @@
         <button class="btn" type="button" id="cf-annuler" style="display:none;background:var(--ink-soft);" onclick="annulerEditionChargeFixe()">Annuler</button>
       </form>
     </div>
+    <div class="grille-cartes" id="zone-charges-fixes" style="margin-top:12px;"></div>
 
     <h2 class="section-titre">Charges enfants (cantine, garderie...) — détail</h2>
     <p style="color:var(--ink-soft);font-size:0.9rem;margin-top:-6px;">Jours ouvrés du mois calculés automatiquement (lundi-vendredi), ajustables si besoin (absences, jours en plus...).</p>
