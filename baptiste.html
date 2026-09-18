@@ -50,6 +50,7 @@
     </div>
 
     <div class="taches-enfant" id="liste-taches-enfant"></div>
+    <div id="liste-taches-exclues" style="max-width:480px;margin:10px auto 0;"></div>
 
   </main>
 </div>
@@ -119,25 +120,36 @@ async function chargerScores() {
   const premierDuMois = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
   const dernierDuMois = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0);
 
-  const [jourRes, semaineRes, moisRes] = await Promise.all([
+  const [jourRes, semaineRes, moisRes, exceptionsRes] = await Promise.all([
     sb.from('taches_menage_log').select('id').eq('fait_par', _baptiste.id).eq('fait', true).eq('date', auj),
     sb.from('taches_menage_log').select('id').eq('fait_par', _baptiste.id).eq('fait', true).gte('date', lundi).lte('date', dimanche),
-    sb.from('taches_menage_log').select('id').eq('fait_par', _baptiste.id).eq('fait', true).gte('date', formatDateLocale(premierDuMois)).lte('date', formatDateLocale(dernierDuMois))
+    sb.from('taches_menage_log').select('id').eq('fait_par', _baptiste.id).eq('fait', true).gte('date', formatDateLocale(premierDuMois)).lte('date', formatDateLocale(dernierDuMois)),
+    sb.from('taches_menage_exceptions').select('tache_id,date')
+      .gte('date', lundi < formatDateLocale(premierDuMois) ? lundi : formatDateLocale(premierDuMois))
+      .lte('date', dimanche > formatDateLocale(dernierDuMois) ? dimanche : formatDateLocale(dernierDuMois))
   ]);
 
-  // Totaux possibles (nombre de tâches applicables x points), à partir des tâches actuellement actives
-  const maxJour = tachesPourJour(new Date().getDay()).length * POINTS_PAR_TACHE;
+  // Ensemble "tache_id|date" exclue ce jour-là (n'enlève rien à la fréquence, juste ce jour précis)
+  const exclusions = new Set((exceptionsRes.data || []).map(e => `${e.tache_id}|${e.date}`));
+  const nbApplicables = (jourSemaine) => tachesPourJour(jourSemaine).length;
+  const nbApplicablesDate = (d) => {
+    const ds = formatDateLocale(d);
+    return tachesPourJour(d.getDay()).filter(t => !exclusions.has(`${t.id}|${ds}`)).length;
+  };
+
+  // Totaux possibles (nombre de tâches applicables x points), en retirant les exceptions du jour
+  const maxJour = nbApplicablesDate(new Date()) * POINTS_PAR_TACHE;
 
   let maxSemaine = 0;
   for (let i = 0; i < 7; i++) {
     const d = new Date(lundiDeLaSemaine(new Date()));
     d.setDate(d.getDate() + i);
-    maxSemaine += tachesPourJour(d.getDay()).length * POINTS_PAR_TACHE;
+    maxSemaine += nbApplicablesDate(d) * POINTS_PAR_TACHE;
   }
 
   let maxMois = 0;
   for (let d = new Date(premierDuMois); d <= dernierDuMois; d.setDate(d.getDate() + 1)) {
-    maxMois += tachesPourJour(d.getDay()).length * POINTS_PAR_TACHE;
+    maxMois += nbApplicablesDate(d) * POINTS_PAR_TACHE;
   }
 
   const obtenuJour = (jourRes.data || []).length * POINTS_PAR_TACHE;
@@ -158,16 +170,32 @@ async function chargerTachesEnfant() {
   const dateVue = dateConsultee();
   const jourSemaine = new Date(dateVue + 'T12:00:00').getDay();
 
-  const [tachesRes, logsRes] = await Promise.all([
+  const [tachesRes, logsRes, exceptionsRes] = await Promise.all([
     sb.from('taches_menage').select('*').eq('actif', true).eq('membre_id', _baptiste.id),
-    sb.from('taches_menage_log').select('*').eq('date', dateVue)
+    sb.from('taches_menage_log').select('*').eq('date', dateVue),
+    sb.from('taches_menage_exceptions').select('*').eq('date', dateVue)
   ]);
   _tachesBaptiste = tachesRes.data || [];
+  const tachesExclues = exceptionsRes.data || [];
+  const idsExclus = new Set(tachesExclues.map(e => e.tache_id));
 
   const logsMap = {};
   (logsRes.data || []).forEach(l => logsMap[l.tache_id] = l);
 
-  const tachesDuJour = tachesPourJour(jourSemaine);
+  const tachesDuJourToutes = tachesPourJour(jourSemaine);
+  const tachesDuJour = tachesDuJourToutes.filter(t => !idsExclus.has(t.id));
+
+  const zoneExclues = document.getElementById('liste-taches-exclues');
+  const exclues = tachesDuJourToutes.filter(t => idsExclus.has(t.id));
+  zoneExclues.innerHTML = exclues.length ? `
+    <p style="text-align:center;color:var(--ink-soft);font-size:0.8rem;margin-bottom:6px;">Exclues aujourd'hui (ne comptent pas dans le score) :</p>
+    ${exclues.map(t => `
+      <div class="item-ligne" style="justify-content:center;gap:8px;color:var(--ink-soft);">
+        <span>${t.icone || '🧹'} ${t.libelle}</span>
+        <button class="btn" style="background:var(--paper);color:var(--ink);box-shadow:var(--shadow-1);padding:4px 10px;font-size:0.8rem;" onclick="restaurerTacheJour('${t.id}', '${dateVue}')">↩️ Remettre</button>
+      </div>
+    `).join('')}
+  ` : '';
 
   const zone = document.getElementById('liste-taches-enfant');
   if (!tachesDuJour.length) {
@@ -180,13 +208,26 @@ async function chargerTachesEnfant() {
   zone.innerHTML = tachesDuJour.map(t => {
     const fait = logsMap[t.id] ? logsMap[t.id].fait : false;
     return `
-      <div class="tache-enfant ${fait ? 'coche' : ''}" id="tache-${t.id}" onclick="basculerTacheEnfant('${t.id}', ${fait}, '${t.frequence}')">
-        <span class="emoji-tache">${t.icone || '🧹'}</span>
-        <span class="libelle-tache">${t.libelle}</span>
-        <span class="rond-coche">${fait ? '✓' : ''}</span>
+      <div class="tache-enfant ${fait ? 'coche' : ''}" id="tache-${t.id}">
+        <span class="emoji-tache" onclick="basculerTacheEnfant('${t.id}', ${fait}, '${t.frequence}')" style="cursor:pointer;">${t.icone || '🧹'}</span>
+        <span class="libelle-tache" onclick="basculerTacheEnfant('${t.id}', ${fait}, '${t.frequence}')" style="cursor:pointer;">${t.libelle}</span>
+        <span class="rond-coche" onclick="basculerTacheEnfant('${t.id}', ${fait}, '${t.frequence}')" style="cursor:pointer;">${fait ? '✓' : ''}</span>
+        <button title="Exclure ce jour seulement" style="background:none;border:none;color:var(--ink-soft);font-size:0.9rem;cursor:pointer;padding:4px;" onclick="event.stopPropagation(); exclureTacheJour('${t.id}', '${dateVue}')">🚫</button>
       </div>
     `;
   }).join('');
+}
+
+async function exclureTacheJour(tacheId, date) {
+  await sb.from('taches_menage_exceptions').insert({ tache_id: tacheId, date });
+  await chargerTachesEnfant();
+  chargerScores();
+}
+
+async function restaurerTacheJour(tacheId, date) {
+  await sb.from('taches_menage_exceptions').delete().eq('tache_id', tacheId).eq('date', date);
+  await chargerTachesEnfant();
+  chargerScores();
 }
 
 async function basculerTacheEnfant(tacheId, faitActuel, frequence) {

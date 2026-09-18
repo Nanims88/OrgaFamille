@@ -144,14 +144,16 @@ async function chargerLanes() {
   const bornInf = new Date(Date.now() - 60 * 86400000).toISOString().slice(0, 10);
   const bornSup = new Date(Date.now() + 60 * 86400000).toISOString().slice(0, 10);
 
-  const [membres, taches, logs, planning, evenementsRes] = await Promise.all([
+  const [membres, taches, logs, planning, evenementsRes, exceptionsRes] = await Promise.all([
     getMembres(),
     sb.from('taches_menage').select('*').eq('actif', true),
     sb.from('taches_menage_log').select('*').eq('date', auj),
     sb.from('planning_recurrent').select('*').eq('jour_semaine', jourSemaine),
-    sb.from('evenements').select('*').gte('date_debut', bornInf + 'T00:00:00').lte('date_debut', bornSup + 'T23:59:59')
+    sb.from('evenements').select('*').gte('date_debut', bornInf + 'T00:00:00').lte('date_debut', bornSup + 'T23:59:59'),
+    sb.from('taches_menage_exceptions').select('tache_id').eq('date', auj)
   ]);
 
+  const idsExclusAuj = new Set((exceptionsRes.data || []).map(e => e.tache_id));
   const logsMap = {};
   (logs.data || []).forEach(l => logsMap[l.tache_id] = l);
 
@@ -175,7 +177,7 @@ async function chargerLanes() {
     const evtsRemplace = [...evtsM, ...evtsTous].filter(e => e.mode === 'remplace');
     const evtsAjout = evtsM.filter(e => e.mode === 'ajout');
     const planningM = evtsRemplace.length ? [] : (planning.data || []).filter(p => p.membre_id === m.id);
-    const tachesM = (taches.data || []).filter(t => t.membre_id === m.id && (t.frequence === 'quotidien' || t.frequence === 'mensuel' || t.frequence === 'ponctuel' || (t.frequence === 'hebdo' && (t.jours_semaine || []).includes(jourSemaine))));
+    const tachesM = (taches.data || []).filter(t => t.membre_id === m.id && !idsExclusAuj.has(t.id) && (t.frequence === 'quotidien' || t.frequence === 'mensuel' || t.frequence === 'ponctuel' || (t.frequence === 'hebdo' && (t.jours_semaine || []).includes(jourSemaine))));
     const rienDuTout = tachesM.length === 0 && planningM.length === 0 && evtsAjout.length === 0 && evtsRemplace.length === 0;
 
     return `
