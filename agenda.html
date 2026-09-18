@@ -65,29 +65,6 @@
   </nav>
   <main>
 
-    <h2 class="section-titre">Semaine type</h2>
-    <p style="color:var(--ink-soft);font-size:0.9rem;margin-top:-6px;">Le planning habituel de chacun, jour par jour. Un événement en dessous peut le remplacer (vacances) ou s'y ajouter (RDV).</p>
-    <div class="carte" style="overflow-x:auto;">
-      <table style="width:100%;border-collapse:collapse;" id="table-planning"></table>
-    </div>
-
-    <div class="carte" style="margin-top:14px;">
-      <strong id="p-titre-form">Ajouter une ligne à la semaine type</strong>
-      <form class="mini" id="form-planning">
-        <input type="hidden" id="p-id">
-        <select id="p-membre"></select>
-        <select id="p-jour">
-          <option value="1">Lundi</option><option value="2">Mardi</option><option value="3">Mercredi</option>
-          <option value="4">Jeudi</option><option value="5">Vendredi</option><option value="6">Samedi</option><option value="0">Dimanche</option>
-        </select>
-        <input type="text" id="p-lieu" placeholder="Lieu (école, garderie...)" required>
-        <input type="time" id="p-debut">
-        <input type="time" id="p-fin">
-        <button class="btn" type="submit" id="p-submit">Ajouter</button>
-        <button class="btn" type="button" id="p-annuler" style="display:none;background:var(--ink-soft);" onclick="annulerEditionPlanning()">Annuler</button>
-      </form>
-    </div>
-
     <h2 class="section-titre">Événements</h2>
     <p style="color:var(--ink-soft);font-size:0.9rem;margin-top:-6px;">Un événement ponctuel ou une période (ex: vacances). "Remplace" masque la semaine type pendant cette période pour la ou les personnes concernées ; "Vient en plus" s'affiche à côté. Les événements déjà passés ne sont pas affichés.</p>
 
@@ -113,6 +90,29 @@
     </div>
 
     <div class="grille-cartes" id="liste-evenements" style="margin-top:14px;"></div>
+
+    <h2 class="section-titre" style="margin-top:24px;">Semaine type</h2>
+    <p style="color:var(--ink-soft);font-size:0.9rem;margin-top:-6px;">Le planning habituel de chacun, jour par jour. Un événement au-dessus peut le remplacer (vacances) ou s'y ajouter (RDV).</p>
+    <div class="carte" style="overflow-x:auto;">
+      <table style="width:100%;border-collapse:collapse;" id="table-planning"></table>
+    </div>
+
+    <div class="carte" style="margin-top:14px;">
+      <strong id="p-titre-form">Ajouter une ligne à la semaine type</strong>
+      <form class="mini" id="form-planning">
+        <input type="hidden" id="p-id">
+        <select id="p-membre"></select>
+        <select id="p-jour">
+          <option value="1">Lundi</option><option value="2">Mardi</option><option value="3">Mercredi</option>
+          <option value="4">Jeudi</option><option value="5">Vendredi</option><option value="6">Samedi</option><option value="0">Dimanche</option>
+        </select>
+        <input type="text" id="p-lieu" placeholder="Lieu (école, garderie...)" required>
+        <input type="time" id="p-debut">
+        <input type="time" id="p-fin">
+        <button class="btn" type="submit" id="p-submit">Ajouter</button>
+        <button class="btn" type="button" id="p-annuler" style="display:none;background:var(--ink-soft);" onclick="annulerEditionPlanning()">Annuler</button>
+      </form>
+    </div>
 
   </main>
 </div>
