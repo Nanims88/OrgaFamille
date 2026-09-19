@@ -5,6 +5,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Chez nous — Aujourd'hui</title>
 <link rel="stylesheet" href="assets/style.css?v=7">
+<style>
+  .alerte-checklist {
+    border-left: 4px solid var(--maman);
+    background: #FBEEE8;
+    margin-bottom: 16px;
+  }
+  .alerte-checklist strong { color: var(--maman); }
+</style>
 </head>
 <body>
 
@@ -36,6 +44,8 @@
     <a href="parametres.html">⚙️ Réglages</a>
   </nav>
   <main>
+
+    <div id="alerte-checklists" style="display:none;"></div>
 
     <div class="vue-tabs">
       <button id="tab-jour" onclick="changerVue('jour')">📆 Jour</button>
@@ -80,6 +90,33 @@
 <script src="assets/app.js?v=7"></script>
 <script>
 document.getElementById('date-jour').textContent = formatDateLongue(dateAujourdhui());
+
+async function chargerAlerteChecklists() {
+  const [{ data: instances }, { data: items }] = await Promise.all([
+    sb.from('checklists_instances').select('*'),
+    sb.from('checklists_instance_items').select('*')
+  ]);
+  const zone = document.getElementById('alerte-checklists');
+  const nonFinies = (instances || []).map(inst => {
+    const itemsInst = (items || []).filter(it => it.instance_id === inst.id);
+    return { nom: inst.nom, nbFait: itemsInst.filter(it => it.coche).length, total: itemsInst.length };
+  }).filter(x => x.total > 0 && x.nbFait < x.total);
+
+  if (!nonFinies.length) { zone.style.display = 'none'; zone.innerHTML = ''; return; }
+  zone.style.display = 'block';
+  zone.innerHTML = `
+    <div class="carte alerte-checklist">
+      <strong>⚠️ Checklist${nonFinies.length > 1 ? 's' : ''} en cours non terminée${nonFinies.length > 1 ? 's' : ''}</strong>
+      ${nonFinies.map(x => `
+        <div class="item-ligne">
+          <span style="flex:1;">${x.nom}</span>
+          <span style="color:var(--ink-soft);font-size:0.85rem;">${x.nbFait}/${x.total}</span>
+        </div>
+      `).join('')}
+      <a class="btn" href="checklists.html" style="display:inline-block;margin-top:10px;text-decoration:none;">Voir les checklists</a>
+    </div>
+  `;
+}
 
 function changerVue(v) {
   ['jour','semaine','mois'].forEach(x => {
@@ -352,6 +389,7 @@ async function chargerMois() {
 function initPage() {
   chargerSemaine();
   chargerEncartSansDate();
+  chargerAlerteChecklists();
 }
 </script>
 </body>
