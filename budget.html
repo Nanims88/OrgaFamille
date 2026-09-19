@@ -33,6 +33,52 @@
     padding: 4px 8px;
     font-size: 0.68rem;
   }
+
+  /* ---------- Vue annuelle ---------- */
+  .viz-annuel {
+    --viz-secondaire: #52514e;
+    --viz-muted: #898781;
+    --viz-grille: #e6e1d4;
+  }
+  .viz-wrap { position: relative; }
+  .viz-legende {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px;
+    margin-bottom: 10px;
+    font-size: 0.82rem;
+    color: var(--viz-secondaire);
+  }
+  .viz-legende-item { display: inline-flex; align-items: center; gap: 6px; }
+  .viz-legende-cle { display: inline-block; width: 14px; height: 3px; border-radius: 2px; }
+  .viz-svg text { font-family: 'Nunito', sans-serif; }
+  .viz-hit { fill: transparent; cursor: crosshair; }
+  .viz-crosshair { stroke: var(--viz-muted); stroke-width: 1; pointer-events: none; opacity: 0; }
+  .viz-tooltip {
+    position: absolute;
+    top: 10px;
+    background: var(--paper);
+    border-radius: var(--radius-sm);
+    box-shadow: var(--shadow-2);
+    padding: 8px 12px;
+    font-size: 0.8rem;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity .1s ease;
+    white-space: nowrap;
+    z-index: 2;
+  }
+  .viz-tooltip.visible { opacity: 1; }
+  .viz-tooltip .viz-tt-titre { font-weight: 800; color: var(--ink); margin-bottom: 4px; }
+  .viz-tooltip .viz-tt-ligne { display: flex; align-items: center; gap: 6px; }
+  .viz-tooltip .viz-tt-cle { display: inline-block; width: 10px; height: 3px; border-radius: 2px; }
+  .viz-tooltip .viz-tt-valeur { font-weight: 800; color: var(--ink); margin-left: auto; padding-left: 10px; font-variant-numeric: tabular-nums; }
+  .viz-tooltip .viz-tt-nom { color: var(--viz-secondaire); }
+  table.viz-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; margin-top: 10px; }
+  table.viz-table th, table.viz-table td { padding: 6px 8px; text-align: right; border-bottom: 1px solid var(--border); font-variant-numeric: tabular-nums; }
+  table.viz-table th:first-child, table.viz-table td:first-child { text-align: left; font-variant-numeric: initial; }
+  table.viz-table thead th { color: var(--viz-secondaire); font-weight: 700; font-size: 0.75rem; }
+  table.viz-table td.viz-total { font-weight: 800; }
 </style>
 </head>
 <body>
@@ -160,6 +206,27 @@
     <h2 class="section-titre">Dépenses variables du mois — historique</h2>
     <p style="color:var(--ink-soft);font-size:0.9rem;margin-top:-6px;">À titre informatif. Ces dépenses viennent en crédit/débit sur le montant à verser du <strong>mois suivant</strong>.</p>
     <div class="grille-cartes" id="zone-depenses"></div>
+
+    <h2 class="section-titre">Vue annuelle</h2>
+    <p style="color:var(--ink-soft);font-size:0.9rem;margin-top:-6px;">Évolution des dépenses par poste, mois par mois.</p>
+    <div class="semaine-nav" style="justify-content:center;">
+      <button class="btn" onclick="deplacerAnnee(-1)">◀</button>
+      <button class="btn" id="budget-annee-label" onclick="allerAnneeActuelle()">Cette année</button>
+      <button class="btn" onclick="deplacerAnnee(1)">▶</button>
+    </div>
+    <div class="carte viz-annuel" style="margin-top:12px;">
+      <div class="viz-legende" id="viz-legende"></div>
+      <div class="viz-wrap" id="viz-wrap">
+        <div id="viz-graphe"></div>
+        <div class="viz-tooltip" id="viz-tooltip"></div>
+      </div>
+      <details style="margin-top:10px;">
+        <summary style="cursor:pointer;color:var(--ink-soft);font-size:0.85rem;">Voir le détail en tableau</summary>
+        <div style="overflow-x:auto;">
+          <table class="viz-table" id="viz-table"></table>
+        </div>
+      </details>
+    </div>
 
   </main>
 </div>
@@ -788,6 +855,217 @@ async function toggleChargeFixePointee(chargeId, mois, coche) {
   chargerResume();
 }
 
+// ---------- Vue annuelle : évolution des dépenses par poste, par mois ----------
+const POSTES_ANNUEL = [
+  { cle: 'chargesFixes', nom: 'Charges fixes', hex: '#2a78d6' },
+  { cle: 'chargesEnfants', nom: 'Charges enfants', hex: '#eb6834' },
+  { cle: 'carburant', nom: 'Carburant', hex: '#1baf7a' },
+  { cle: 'depensesVariables', nom: 'Dépenses variables', hex: '#eda100' }
+];
+const NOMS_MOIS_COURT = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Août', 'Sep', 'Oct', 'Nov', 'Déc'];
+const NOMS_MOIS_LONG = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
+
+async function calculerPostesMois(mois) {
+  const joursBase = joursOuvresDuMois(premierJourDuMois(mois));
+  const [montantsChargesFixes, ajustEnfantsRes, transportRes, depVarRes] = await Promise.all([
+    resoudreMontantsChargesFixes(mois),
+    sb.from('budget_charges_enfants_ajustement').select('*').eq('mois', mois),
+    sb.from('budget_transport').select('*'),
+    sb.from('budget_depenses_variables').select('montant').gte('date', mois + '-01').lt('date', moisSuivantStr(mois))
+  ]);
+
+  const chargesFixes = _chargesFixesCache.reduce((s, c) => s + montantsChargesFixes[c.id].montant, 0);
+
+  const ajustParId = Object.fromEntries((ajustEnfantsRes.data || []).map(a => [a.charge_id, a.ajustement_jours]));
+  const chargesEnfants = _chargesEnfantsCache.reduce((s, c) => {
+    const joursRetenus = Math.max(0, joursBase + (ajustParId[c.id] || 0));
+    return s + joursRetenus * c.prix_jour;
+  }, 0);
+
+  const carburant = (transportRes.data || []).reduce((s, t) => s + t.km_aller * 2 * t.jours_travail_mois * (t.consommation_l_100km / 100) * t.prix_litre, 0);
+
+  const depensesVariables = (depVarRes.data || []).reduce((s, d) => s + d.montant, 0);
+
+  return { chargesFixes, chargesEnfants, carburant, depensesVariables };
+}
+
+async function calculerAnnee(annee) {
+  const mois12 = [...Array(12)].map((_, i) => `${annee}-${String(i + 1).padStart(2, '0')}`);
+  return Promise.all(mois12.map(m => calculerPostesMois(m)));
+}
+
+function niceMax(valeur) {
+  const cible = valeur * 1.15;
+  const magnitude = Math.pow(10, Math.floor(Math.log10(Math.max(cible, 1))));
+  const normalise = cible / magnitude;
+  let pas;
+  if (normalise <= 1) pas = 1;
+  else if (normalise <= 2) pas = 2;
+  else if (normalise <= 2.5) pas = 2.5;
+  else if (normalise <= 5) pas = 5;
+  else pas = 10;
+  return pas * magnitude;
+}
+
+let _offsetAnnee = 0;
+function anneeConsultee() { return new Date().getFullYear() + _offsetAnnee; }
+function majLabelAnnee() {
+  const annee = anneeConsultee();
+  document.getElementById('budget-annee-label').textContent = _offsetAnnee === 0 ? `Cette année (${annee})` : String(annee);
+}
+function deplacerAnnee(delta) { _offsetAnnee += delta; majLabelAnnee(); chargerVueAnnuelle(); }
+function allerAnneeActuelle() { _offsetAnnee = 0; majLabelAnnee(); chargerVueAnnuelle(); }
+
+function renderLegendeAnnuel() {
+  document.getElementById('viz-legende').innerHTML = POSTES_ANNUEL.map(p => `
+    <span class="viz-legende-item"><span class="viz-legende-cle" style="background:${p.hex}"></span>${p.nom}</span>
+  `).join('');
+}
+
+function renderTableAnnuel(data, annee) {
+  const total = d => POSTES_ANNUEL.reduce((s, p) => s + d[p.cle], 0);
+  document.getElementById('viz-table').innerHTML = `
+    <thead><tr>
+      <th>Mois ${annee}</th>
+      ${POSTES_ANNUEL.map(p => `<th>${p.nom}</th>`).join('')}
+      <th>Total</th>
+    </tr></thead>
+    <tbody>
+      ${data.map((d, i) => `
+        <tr>
+          <td>${NOMS_MOIS_LONG[i]}</td>
+          ${POSTES_ANNUEL.map(p => `<td>${d[p.cle].toFixed(2)} €</td>`).join('')}
+          <td class="viz-total">${total(d).toFixed(2)} €</td>
+        </tr>
+      `).join('')}
+    </tbody>
+  `;
+}
+
+function renderGrapheAnnuel(data, annee) {
+  const LARGEUR = 760, HAUTEUR = 260;
+  const MARGE = { gauche: 42, droite: 62, haut: 16, bas: 26 };
+  const largeurPlot = LARGEUR - MARGE.gauche - MARGE.droite;
+  const hauteurPlot = HAUTEUR - MARGE.haut - MARGE.bas;
+  const xEch = i => MARGE.gauche + (i / 11) * largeurPlot;
+
+  const toutesValeurs = data.flatMap(d => POSTES_ANNUEL.map(p => d[p.cle]));
+  const yMax = niceMax(Math.max(1, ...toutesValeurs));
+  const yEch = v => MARGE.haut + hauteurPlot - (Math.max(0, v) / yMax) * hauteurPlot;
+
+  const nbTicks = 4;
+  const ticksHtml = [...Array(nbTicks + 1)].map((_, i) => {
+    const valeur = yMax * i / nbTicks;
+    const yPix = yEch(valeur);
+    return `
+      <line x1="${MARGE.gauche}" y1="${yPix}" x2="${LARGEUR - MARGE.droite}" y2="${yPix}" stroke="var(--viz-grille)" stroke-width="1"/>
+      <text x="${MARGE.gauche - 8}" y="${yPix + 3}" font-size="9" fill="var(--viz-muted)" text-anchor="end">${Math.round(valeur)}</text>
+    `;
+  }).join('');
+
+  const moisHtml = NOMS_MOIS_COURT.map((n, i) => `
+    <text x="${xEch(i)}" y="${HAUTEUR - 8}" font-size="10" fill="var(--viz-muted)" text-anchor="middle">${n}</text>
+  `).join('');
+
+  const lignesHtml = POSTES_ANNUEL.map(p => {
+    const pts = data.map((d, i) => `${xEch(i)},${yEch(d[p.cle])}`).join(' ');
+    return `<polyline points="${pts}" fill="none" stroke="${p.hex}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>`;
+  }).join('');
+
+  // Étiquettes de fin d'année, avec anti-collision verticale
+  const xFin = xEch(11);
+  const ESPACE_MIN = 13;
+  const finPoints = POSTES_ANNUEL.map(p => {
+    const valeur = data[11][p.cle];
+    const yBase = yEch(valeur);
+    return { p, valeur, yBase, yLabel: yBase };
+  }).sort((a, b) => a.yBase - b.yBase);
+  for (let i = 1; i < finPoints.length; i++) {
+    if (finPoints[i].yLabel - finPoints[i - 1].yLabel < ESPACE_MIN) {
+      finPoints[i].yLabel = finPoints[i - 1].yLabel + ESPACE_MIN;
+    }
+  }
+
+  const finHtml = finPoints.map(({ p, valeur, yBase, yLabel }) => `
+    <circle cx="${xFin}" cy="${yBase}" r="4" fill="${p.hex}" stroke="var(--paper)" stroke-width="2"/>
+    ${Math.abs(yLabel - yBase) > 1 ? `<line x1="${xFin + 8}" y1="${yBase}" x2="${xFin + 8}" y2="${yLabel}" stroke="var(--viz-muted)" stroke-width="1"/>` : ''}
+    <line x1="${xFin + 6}" y1="${yLabel}" x2="${xFin + 15}" y2="${yLabel}" stroke="${p.hex}" stroke-width="2"/>
+    <text x="${xFin + 18}" y="${yLabel + 3}" font-size="10" font-weight="800" fill="var(--ink)">${Math.round(valeur)} €</text>
+  `).join('');
+
+  const largeurColonne = largeurPlot / 12;
+  const hitHtml = [...Array(12)].map((_, i) => `
+    <rect class="viz-hit" data-index="${i}" x="${MARGE.gauche + i * largeurColonne}" y="0" width="${largeurColonne}" height="${HAUTEUR}" tabindex="0"/>
+  `).join('');
+
+  document.getElementById('viz-graphe').innerHTML = `
+    <svg class="viz-svg" viewBox="0 0 ${LARGEUR} ${HAUTEUR}" style="width:100%;height:auto;display:block;">
+      ${ticksHtml}
+      ${lignesHtml}
+      ${finHtml}
+      ${moisHtml}
+      <line class="viz-crosshair" x1="0" y1="${MARGE.haut}" x2="0" y2="${HAUTEUR - MARGE.bas}"></line>
+      ${hitHtml}
+    </svg>
+  `;
+
+  const svgEl = document.querySelector('#viz-graphe svg');
+  const crosshair = svgEl.querySelector('.viz-crosshair');
+  const tooltip = document.getElementById('viz-tooltip');
+  const wrap = document.getElementById('viz-wrap');
+
+  function afficherTooltip(i) {
+    const xPix = xEch(i);
+    crosshair.setAttribute('x1', xPix);
+    crosshair.setAttribute('x2', xPix);
+    crosshair.style.opacity = 1;
+    const d = data[i];
+    const total = POSTES_ANNUEL.reduce((s, p) => s + d[p.cle], 0);
+    tooltip.innerHTML = `
+      <div class="viz-tt-titre">${NOMS_MOIS_LONG[i]} ${annee}</div>
+      ${POSTES_ANNUEL.map(p => `
+        <div class="viz-tt-ligne">
+          <span class="viz-tt-cle" style="background:${p.hex}"></span>
+          <span class="viz-tt-nom">${p.nom}</span>
+          <span class="viz-tt-valeur">${d[p.cle].toFixed(2)} €</span>
+        </div>
+      `).join('')}
+      <div class="viz-tt-ligne" style="margin-top:4px;padding-top:4px;border-top:1px solid var(--border);">
+        <span class="viz-tt-nom" style="font-weight:800;color:var(--ink);">Total</span>
+        <span class="viz-tt-valeur">${total.toFixed(2)} €</span>
+      </div>
+    `;
+    tooltip.classList.add('visible');
+    const wrapRect = wrap.getBoundingClientRect();
+    const svgRect = svgEl.getBoundingClientRect();
+    const xEcran = (xPix / LARGEUR) * svgRect.width;
+    let left = xEcran + 14;
+    if (left > wrapRect.width - 180) left = xEcran - 190;
+    tooltip.style.left = Math.max(4, left) + 'px';
+  }
+  function masquerTooltip() {
+    crosshair.style.opacity = 0;
+    tooltip.classList.remove('visible');
+  }
+
+  svgEl.querySelectorAll('.viz-hit').forEach(rect => {
+    const i = parseInt(rect.dataset.index, 10);
+    rect.addEventListener('pointerenter', () => afficherTooltip(i));
+    rect.addEventListener('pointermove', () => afficherTooltip(i));
+    rect.addEventListener('pointerleave', masquerTooltip);
+    rect.addEventListener('focus', () => afficherTooltip(i));
+    rect.addEventListener('blur', masquerTooltip);
+  });
+}
+
+async function chargerVueAnnuelle() {
+  const annee = anneeConsultee();
+  const data = await calculerAnnee(annee);
+  renderLegendeAnnuel();
+  renderGrapheAnnuel(data, annee);
+  renderTableAnnuel(data, annee);
+}
+
 async function initPage() {
   await chargerSalaires();
   const membres = await getMembres();
@@ -797,6 +1075,8 @@ async function initPage() {
   await chargerDepenses();
   await chargerSoldeCompte();
   chargerResume();
+  majLabelAnnee();
+  chargerVueAnnuelle();
 }
 </script>
 </body>
