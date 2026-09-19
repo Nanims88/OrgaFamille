@@ -824,9 +824,9 @@ async function chargerResume() {
 
   document.getElementById('zone-resume-fixes').innerHTML = `
     <h3 style="font-size:0.95rem;margin-bottom:8px;">Charges fixes du mois — à pointer</h3>
-    <div class="taches-enfant" style="max-width:none;">
+    <div class="taches-enfant" style="max-width:none;gap:0;">
       ${_chargesFixesCache.map(c => `
-        <div class="item-ligne" style="border-bottom:1px solid var(--border);padding:8px 0;">
+        <div class="item-ligne" style="border-bottom:1px solid var(--border);padding:5px 0;">
           <input type="checkbox" ${statutParCharge[c.id] ? 'checked' : ''} onchange="toggleChargeFixePointee('${c.id}', '${mois}', this.checked)">
           <span style="flex:1;">${c.libelle}</span>
           <span class="heure" style="color:${_montantsChargesFixes[c.id].montant < 0 ? 'var(--louis)' : 'var(--ink-soft)'}">${_montantsChargesFixes[c.id].montant.toFixed(2)} €</span>
