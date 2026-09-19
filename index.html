@@ -157,13 +157,25 @@ async function chargerEncartSansDate() {
   `;
 }
 
-async function terminerTravail(id) {
+// Une tâche "ponctuelle" (travaux / à penser) n'a pas vocation à revenir : la cocher la termine
+// définitivement, comme le bouton "✅ Terminé" de la page Tâches — plutôt que de juste logger
+// "faite aujourd'hui", ce qui la ferait réapparaître décochée le jour suivant.
+async function terminerTacheDefinitivement(id) {
   await sb.from('taches_menage').update({ actif: false }).eq('id', id);
+}
+
+async function terminerTravail(id) {
+  await terminerTacheDefinitivement(id);
   chargerEncartSansDate();
 }
 
 // ================= VUE JOUR =================
-async function toggleTache(tacheId, membreId, faitActuel) {
+async function toggleTache(tacheId, membreId, faitActuel, frequence) {
+  if (frequence === 'ponctuel') {
+    await terminerTacheDefinitivement(tacheId);
+    chargerLanes();
+    return;
+  }
   const nouvelEtat = !faitActuel;
   await sb.from('taches_menage_log').upsert({
     tache_id: tacheId,
@@ -227,7 +239,7 @@ async function chargerLanes() {
           const log = logsMap[t.id];
           const fait = log ? log.fait : false;
           return `<div class="item-ligne ${fait ? 'fait' : ''}">
-            <input type="checkbox" ${fait ? 'checked' : ''} onchange="toggleTache('${t.id}','${m.id}',${fait})">
+            <input type="checkbox" ${fait ? 'checked' : ''} onchange="toggleTache('${t.id}','${m.id}',${fait},'${t.frequence}')">
             ${t.icone} ${t.libelle}
           </div>`;
         }).join('')}
@@ -249,6 +261,10 @@ function lundiDeLaSemaine(date) {
 }
 function deplacerSemaine(delta) { offsetSemaine += delta; chargerSemaine(); }
 function allerSemaineActuelle() { offsetSemaine = 0; chargerSemaine(); }
+async function terminerTravailSemaine(id) {
+  await terminerTacheDefinitivement(id);
+  chargerSemaine();
+}
 
 async function chargerSemaine() {
   const base = new Date();
@@ -301,7 +317,11 @@ async function chargerSemaine() {
     }).join('')
       + evtsTousJour.map(e => `<div class="item-ligne">👨‍👩‍👧‍👦 ${e.titre}</div>`).join('')
       + activitesJour.map(a => `<div class="item-ligne">🎒 ${a.titre}</div>`).join('')
-      + travauxJour.map(t => `<div class="item-ligne">🧰 ${t.libelle}</div>`).join('');
+      + travauxJour.map(t => `
+        <div class="item-ligne">
+          <input type="checkbox" onchange="terminerTravailSemaine('${t.id}')">
+          <span>🧰 ${t.libelle}</span>
+        </div>`).join('');
 
     return `
       <div class="jour-carte ${estVacances ? 'vacances' : ''} ${ds === dateAujourdhui() ? 'aujourdhui' : ''}">
