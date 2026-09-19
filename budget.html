@@ -759,8 +759,11 @@ async function calculerFluxMois(mois) {
   const totalDepensesPrec = depensesPrec.reduce((s, d) => s + d.montant, 0);
   // Total réellement encaissé sur le compte commun : chacun verse l'arrondi supérieur de ce qu'il doit ; un "trop versé" n'est pas retiré du compte.
   const totalAVerser = Object.values(solde).reduce((s, v) => s + Math.ceil(Math.max(0, v)), 0);
+  // Le carburant est payé en direct par chacun (voir dejaPaye) : il ne transite jamais par le compte commun.
+  const totalCarburant = Object.values(dejaPaye).reduce((s, v) => s + v, 0);
+  const totalCommun = totalMois - totalCarburant;
 
-  return { totalMois, partTheorique, dejaPaye, soldeVariablePrec, solde, totalDepensesPrec, totalAVerser };
+  return { totalMois, totalCommun, partTheorique, dejaPaye, soldeVariablePrec, solde, totalDepensesPrec, totalAVerser };
 }
 
 // ---------- Solde du compte commun (figé par mois, ajustable ; suggéré à partir du mois précédent) ----------
@@ -773,9 +776,9 @@ async function resoudreSoldeCompte(mois) {
   const moisPrec = moisPrecedentStr(mois);
   const { data: exactPrec } = await sb.from('budget_solde_compte').select('*').eq('mois', moisPrec).maybeSingle();
   const soldeDebutPrec = exactPrec ? exactPrec.solde : 0;
-  const { totalMois: totalMoisPrec, totalAVerser: totalAVerserPrec } = await calculerFluxMois(moisPrec);
+  const { totalCommun: totalCommunPrec, totalAVerser: totalAVerserPrec } = await calculerFluxMois(moisPrec);
 
-  return { solde: soldeDebutPrec - totalMoisPrec + totalAVerserPrec, suggestion: true };
+  return { solde: soldeDebutPrec - totalCommunPrec + totalAVerserPrec, suggestion: true };
 }
 
 async function chargerSoldeCompte() {
@@ -809,8 +812,8 @@ async function chargerResume() {
   const { data: statutsData } = await sb.from('budget_charges_fixes_statut').select('*').eq('mois', mois);
   const statutParCharge = Object.fromEntries((statutsData || []).map(s => [s.charge_id, s.paye]));
 
-  const { totalMois, partTheorique, dejaPaye, soldeVariablePrec, solde, totalDepensesPrec, totalAVerser } = await calculerFluxMois(mois);
-  const soldeFinMois = _soldeDebutMoisCourant - totalMois + totalAVerser;
+  const { totalMois, totalCommun, partTheorique, dejaPaye, soldeVariablePrec, solde, totalDepensesPrec, totalAVerser } = await calculerFluxMois(mois);
+  const soldeFinMois = _soldeDebutMoisCourant - totalCommun + totalAVerser;
 
   const resteAPrelever = _chargesFixesCache.reduce((s, c) => s + (statutParCharge[c.id] ? 0 : _montantsChargesFixes[c.id].montant), 0);
 
