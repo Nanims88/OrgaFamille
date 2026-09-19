@@ -70,12 +70,15 @@
 <script>
 document.getElementById('date-jour').textContent = formatDateLongue(dateAujourdhui());
 
+let _itemsInstanceCache = [];
+
 async function chargerInstances() {
   const { data: instances } = await sb.from('checklists_instances').select('*').order('cree_le', { ascending: false });
   const { data: items } = await sb.from('checklists_instance_items').select('*').order('ordre');
+  _itemsInstanceCache = items || [];
 
   document.getElementById('liste-instances').innerHTML = (instances || []).map(inst => {
-    const itemsInst = (items || []).filter(it => it.instance_id === inst.id);
+    const itemsInst = _itemsInstanceCache.filter(it => it.instance_id === inst.id);
     const nbFait = itemsInst.filter(it => it.coche).length;
     return `
       <div class="carte">
@@ -86,6 +89,7 @@ async function chargerInstances() {
           <div class="item-ligne ${it.coche ? 'fait' : ''}">
             <input type="checkbox" ${it.coche ? 'checked' : ''} onchange="toggleItemInstance('${it.id}', ${it.coche})">
             <span style="flex:1;">${it.libelle}</span>
+            <button class="btn" style="background:transparent;color:var(--ink-soft);box-shadow:none;padding:2px 8px;" onclick="modifierItemInstance('${it.id}')">✏️</button>
             <button class="btn" style="background:transparent;color:var(--ink-soft);box-shadow:none;padding:2px 8px;" onclick="supprimerItemInstance('${it.id}')">✕</button>
           </div>
         `).join('')}
@@ -101,6 +105,14 @@ async function chargerInstances() {
 
 async function toggleItemInstance(id, coche) {
   await sb.from('checklists_instance_items').update({ coche: !coche }).eq('id', id);
+  chargerInstances();
+}
+async function modifierItemInstance(id) {
+  const it = _itemsInstanceCache.find(x => x.id === id);
+  if (!it) return;
+  const nouveau = prompt('Modifier ce point :', it.libelle);
+  if (nouveau === null || !nouveau.trim()) return;
+  await sb.from('checklists_instance_items').update({ libelle: nouveau.trim() }).eq('id', id);
   chargerInstances();
 }
 async function supprimerItemInstance(id) {
@@ -121,21 +133,27 @@ async function supprimerInstance(id) {
   chargerInstances();
 }
 
+let _itemsModeleCache = [];
+
 async function chargerModeles() {
   const { data: modeles } = await sb.from('checklists_modeles').select('*');
   const { data: items } = await sb.from('checklists_modele_items').select('*').order('ordre');
+  _itemsModeleCache = items || [];
 
   document.getElementById('i-modele').innerHTML = (modeles || []).map(m => `<option value="${m.id}">${m.nom}</option>`).join('');
 
   document.getElementById('liste-modeles').innerHTML = (modeles || []).map(m => {
-    const itemsM = (items || []).filter(it => it.modele_id === m.id);
+    const itemsM = _itemsModeleCache.filter(it => it.modele_id === m.id);
     return `
       <div class="carte">
         <strong>${m.nom}</strong>
         <ul style="padding-left:18px;font-size:0.9rem;">
           ${itemsM.map(it => `<li style="display:flex;align-items:center;gap:6px;justify-content:space-between;">
             <span>${it.libelle}</span>
-            <button class="btn" style="background:transparent;color:var(--ink-soft);box-shadow:none;padding:2px 8px;" onclick="supprimerItemModele('${it.id}')">✕</button>
+            <span style="display:flex;gap:2px;">
+              <button class="btn" style="background:transparent;color:var(--ink-soft);box-shadow:none;padding:2px 8px;" onclick="modifierItemModele('${it.id}')">✏️</button>
+              <button class="btn" style="background:transparent;color:var(--ink-soft);box-shadow:none;padding:2px 8px;" onclick="supprimerItemModele('${it.id}')">✕</button>
+            </span>
           </li>`).join('')}
         </ul>
         <form class="mini" onsubmit="return ajouterItemModele(event, '${m.id}')">
@@ -154,6 +172,14 @@ async function ajouterItemModele(e, modeleId) {
   await sb.from('checklists_modele_items').insert({ modele_id: modeleId, libelle: input.value, ordre: 99 });
   chargerModeles();
   return false;
+}
+async function modifierItemModele(id) {
+  const it = _itemsModeleCache.find(x => x.id === id);
+  if (!it) return;
+  const nouveau = prompt('Modifier ce point :', it.libelle);
+  if (nouveau === null || !nouveau.trim()) return;
+  await sb.from('checklists_modele_items').update({ libelle: nouveau.trim() }).eq('id', id);
+  chargerModeles();
 }
 async function supprimerItemModele(id) {
   await sb.from('checklists_modele_items').delete().eq('id', id);
