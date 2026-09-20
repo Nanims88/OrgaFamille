@@ -1,5 +1,8 @@
 // Service worker de l'app Budget perso — cache l'app shell pour la saisie hors ligne.
-const CACHE = 'budget-perso-v1';
+// Strategie reseau d'abord : en ligne, on prend toujours la derniere version ;
+// hors ligne (ou reseau en echec), on retombe sur le cache. Incrementer CACHE
+// force aussi le navigateur a detecter la mise a jour du service worker lui-meme.
+const CACHE = 'budget-perso-v2';
 const FICHIERS = [
   '../../budget-perso.html',
   'style.css',
@@ -27,13 +30,10 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
   event.respondWith(
-    caches.match(event.request).then(reponse => {
-      if (reponse) return reponse;
-      return fetch(event.request).then(res => {
-        const copie = res.clone();
-        caches.open(CACHE).then(cache => cache.put(event.request, copie));
-        return res;
-      }).catch(() => reponse);
-    })
+    fetch(event.request).then(res => {
+      const copie = res.clone();
+      caches.open(CACHE).then(cache => cache.put(event.request, copie));
+      return res;
+    }).catch(() => caches.match(event.request))
   );
 });
