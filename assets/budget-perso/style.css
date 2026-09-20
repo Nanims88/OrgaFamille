@@ -1,0 +1,114 @@
+/* Styles complementaires a assets/style.css, specifiques au budget perso. */
+
+:root {
+  --ok: #6E9F5C;
+  --attention: #E3A93C;
+  --danger: #C24D3E;
+}
+
+body.theme-sombre {
+  --bg: #201F1B;
+  --paper: #2B2924;
+  --ink: #F3EFE6;
+  --ink-soft: #A79E8E;
+  --border: #3A372F;
+}
+
+.entete-perso .badge-verrou {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--ink-soft);
+  background: var(--paper);
+  padding: 4px 10px;
+  border-radius: 999px;
+  box-shadow: var(--shadow-1);
+}
+
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+  margin-bottom: 18px;
+}
+.stat-carte {
+  background: var(--paper);
+  border-radius: var(--radius-md);
+  padding: 14px 16px;
+  box-shadow: var(--shadow-1);
+}
+.stat-carte .label { font-size: 0.76rem; color: var(--ink-soft); font-weight: 700; text-transform: uppercase; letter-spacing: .03em; }
+.stat-carte .valeur { font-family: 'Baloo 2', sans-serif; font-size: 1.4rem; font-weight: 800; margin-top: 2px; }
+.stat-carte.negatif .valeur { color: var(--danger); }
+.stat-carte.positif .valeur { color: var(--ok); }
+
+.jauge-ligne { margin-bottom: 14px; }
+.jauge-entete { display: flex; justify-content: space-between; font-size: 0.85rem; font-weight: 700; margin-bottom: 6px; }
+.jauge-fond { background: var(--border); border-radius: 999px; height: 12px; overflow: hidden; }
+.jauge-barre { height: 100%; border-radius: 999px; background: var(--ok); transition: width .3s ease; }
+.jauge-barre.attention { background: var(--attention); }
+.jauge-barre.danger { background: var(--danger); }
+
+.alerte {
+  border-left: 4px solid var(--attention);
+  background: #FFF7E8;
+  padding: 12px 16px;
+  border-radius: var(--radius-md);
+  margin-bottom: 14px;
+  font-size: 0.9rem;
+}
+.alerte.danger { border-left-color: var(--danger); background: #FBECEA; }
+.alerte strong { display: block; margin-bottom: 4px; }
+body.theme-sombre .alerte { background: #3A2E14; }
+body.theme-sombre .alerte.danger { background: #3A1D18; }
+
+.chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; }
+.chip {
+  padding: 9px 16px;
+  border-radius: 999px;
+  border: 2px solid var(--border);
+  background: var(--paper);
+  font-weight: 700;
+  font-size: 0.88rem;
+  cursor: pointer;
+}
+.chip.actif { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+
+table.tableau-simple { width: 100%; border-collapse: collapse; font-size: 0.86rem; }
+table.tableau-simple th, table.tableau-simple td { padding: 6px 8px; border-bottom: 1px solid var(--border); text-align: right; }
+table.tableau-simple th:first-child, table.tableau-simple td:first-child { text-align: left; }
+table.tableau-simple tbody tr:last-child td { font-weight: 800; }
+
+.liste-echeances .item-ligne { justify-content: space-between; }
+.liste-echeances .item-ligne .montant { font-weight: 800; }
+
+textarea.champ-import {
+  width: 100%;
+  min-height: 140px;
+  font-family: monospace;
+  font-size: 0.82rem;
+  padding: 10px;
+  border-radius: var(--radius-sm);
+  border: 2px solid var(--border);
+}
+
+.pastille-categorie {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--bg);
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
+.action-flottante {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.champ-groupe { display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; }
+.champ-groupe label { font-size: 0.78rem; font-weight: 700; color: var(--ink-soft); }
+
+@media (max-width: 640px) {
+  .stat-grid { grid-template-columns: repeat(2, 1fr); }
+}

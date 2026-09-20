@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Budget perso</title>
+<link rel="manifest" href="assets/budget-perso/manifest.json">
+<meta name="theme-color" content="#3E7A8C">
+<link rel="icon" href="assets/budget-perso/icon.svg">
+<link rel="apple-touch-icon" href="assets/budget-perso/icon.svg">
+<link rel="stylesheet" href="assets/style.css">
+<link rel="stylesheet" href="assets/budget-perso/style.css">
+</head>
+<body>
+
+<div id="gate">
+  <div class="carte">
+    <h2 class="titre" id="gate-titre">Budget perso</h2>
+    <p id="gate-soustitre">Entre ton code</p>
+    <form id="gate-form">
+      <input id="gate-input" type="password" inputmode="numeric" placeholder="••••" autofocus>
+      <button type="submit">Entrer</button>
+    </form>
+    <p class="erreur" id="gate-erreur"></p>
+  </div>
+</div>
+
+<div id="app">
+  <header class="entete entete-perso">
+    <h1 class="titre">💶 Budget perso</h1>
+    <div style="display:flex;align-items:center;gap:8px">
+      <span class="badge-verrou">🔒 local, hors ligne</span>
+      <div class="date-du-jour" id="date-jour"></div>
+    </div>
+  </header>
+  <nav class="modules" id="nav-onglets"></nav>
+  <main>
+    <div id="vue"><p class="vide">Chargement…</p></div>
+  </main>
+</div>
+
+<script type="module" src="assets/budget-perso/app.js"></script>
+</body>
+</html>
