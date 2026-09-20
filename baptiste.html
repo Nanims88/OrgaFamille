@@ -9,6 +9,31 @@
 <link rel="icon" href="assets/icon.svg">
 <link rel="apple-touch-icon" href="assets/icon.svg">
 <link rel="stylesheet" href="assets/style.css?v=7">
+<style>
+  .defi-jour {
+    max-width: 480px;
+    margin: 0 auto 20px;
+    border: 3px solid var(--baptiste);
+    text-align: center;
+  }
+  .defi-jour h3 { margin-bottom: 10px; font-size: 1.15rem; }
+  .defi-question { font-size: 1.1rem; font-weight: 700; margin-bottom: 14px; }
+  .defi-zone { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+  .defi-zone input {
+    font-family: 'Nunito', sans-serif;
+    font-size: 1.1rem;
+    padding: 10px 14px;
+    border-radius: var(--radius-sm);
+    border: 2px solid var(--border);
+    width: 160px;
+    text-align: center;
+  }
+  .defi-zone input:focus { border-color: var(--baptiste); outline: none; }
+  .defi-message { margin-top: 12px; font-weight: 800; min-height: 1.4em; }
+  .defi-message.ok { color: var(--louis); }
+  .defi-message.non { color: var(--maman); }
+  .defi-jour.resolu { border-color: var(--louis); background: #F1F8EC; }
+</style>
 </head>
 <body class="enfant">
 
@@ -31,6 +56,16 @@
     <a class="retour" href="index.html">← Retour à l'appli</a>
   </header>
   <main>
+
+    <div class="carte defi-jour" id="defi-jour">
+      <h3>🧩 Le défi du jour</h3>
+      <p class="defi-question" id="defi-question"></p>
+      <div class="defi-zone" id="defi-zone">
+        <input id="defi-reponse" type="text" placeholder="Ta réponse" autocomplete="off">
+        <button class="btn" onclick="validerDefi()">Valider</button>
+      </div>
+      <p class="defi-message" id="defi-message"></p>
+    </div>
 
     <div class="scores-enfant">
       <div class="score-pastille" style="background:var(--maman);">
@@ -269,8 +304,101 @@ async function basculerTacheEnfant(tacheId, faitActuel, frequence) {
   chargerScores();
 }
 
+// ================= DEFI DU JOUR =================
+const BANQUE_DEFIS = [
+  { type: 'calcul', question: 'Combien font 3 + 4 ?', reponse: 7 },
+  { type: 'calcul', question: 'Combien font 8 - 5 ?', reponse: 3 },
+  { type: 'calcul', question: 'Combien font 2 x 6 ?', reponse: 12 },
+  { type: 'calcul', question: 'Combien font 10 - 4 ?', reponse: 6 },
+  { type: 'calcul', question: 'Combien font 5 + 9 ?', reponse: 14 },
+  { type: 'calcul', question: 'Combien font 4 x 4 ?', reponse: 16 },
+  { type: 'calcul', question: 'Combien font 15 - 7 ?', reponse: 8 },
+  { type: 'calcul', question: 'Combien font 6 + 6 ?', reponse: 12 },
+  { type: 'calcul', question: 'Combien font 20 - 11 ?', reponse: 9 },
+  { type: 'calcul', question: 'Combien font 3 x 5 ?', reponse: 15 },
+  { type: 'enigme', question: "Plus on m'enlève de morceaux, plus je grandis. Que suis-je ?", reponse: 'un trou' },
+  { type: 'enigme', question: "J'ai des dents mais je ne mange pas. Que suis-je ?", reponse: 'un peigne' },
+  { type: 'enigme', question: "Je vole sans ailes et je pleure sans yeux. Que suis-je ?", reponse: 'un nuage' },
+  { type: 'enigme', question: "Plus je sèche, plus je deviens mouillé. Que suis-je ?", reponse: 'une serviette' },
+  { type: 'enigme', question: "On me lance mais je reviens toujours. Que suis-je ?", reponse: 'un boomerang' },
+  { type: 'enigme', question: "J'ai un cou mais pas de tête. Que suis-je ?", reponse: 'une bouteille' },
+  { type: 'enigme', question: "Je n'ai pas de bouche mais je parle beaucoup. Que suis-je ?", reponse: 'un livre' },
+  { type: 'enigme', question: "Je grandis quand tu me nourris avec de l'eau, mais je meurs si tu m'en donnes trop. Que suis-je ?", reponse: 'une plante' },
+  { type: 'mot', question: "Complète : le soleil se lève à l'___.", reponse: 'est' },
+  { type: 'mot', question: "Complète : un chat miaule, un chien ___.", reponse: 'aboie' },
+  { type: 'mot', question: "Complète : en hiver, il fait ___ et parfois il neige.", reponse: 'froid' },
+  { type: 'mot', question: "Complète : la capitale de la France est ___.", reponse: 'paris' },
+  { type: 'mot', question: "Complète : il y a 7 jours dans une ___.", reponse: 'semaine' },
+  { type: 'mot', question: "Complète : la Terre tourne autour du ___.", reponse: 'soleil' },
+  { type: 'mot', question: "Complète : une année a 12 ___.", reponse: 'mois' },
+  { type: 'mot', question: "Complète : l'abeille fabrique du ___.", reponse: 'miel' },
+  { type: 'mot', question: "Complète : le contraire de « grand » est « ___ ».", reponse: 'petit' },
+  { type: 'mot', question: "Complète : le contraire de « jour » est « ___ ».", reponse: 'nuit' }
+];
+
+function normaliserReponse(s) {
+  return String(s).trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+}
+
+// Choisi le meme defi toute la journee, different chaque jour (base sur la date, pas aleatoire).
+function defiDuJour() {
+  const date = dateAujourdhui();
+  let hash = 0;
+  for (let i = 0; i < date.length; i++) hash = (hash * 31 + date.charCodeAt(i)) >>> 0;
+  return BANQUE_DEFIS[hash % BANQUE_DEFIS.length];
+}
+
+function initDefiJour() {
+  const defi = defiDuJour();
+  const cle = 'defi_' + dateAujourdhui();
+  const dejaFait = localStorage.getItem(cle);
+
+  document.getElementById('defi-question').textContent = defi.question;
+  const carte = document.getElementById('defi-jour');
+  const message = document.getElementById('defi-message');
+  const zone = document.getElementById('defi-zone');
+
+  if (dejaFait === 'reussi') {
+    carte.classList.add('resolu');
+    zone.style.display = 'none';
+    message.className = 'defi-message ok';
+    message.textContent = `Défi déjà réussi aujourd'hui, bravo ! 🌟 (réponse : ${defi.reponse})`;
+    return;
+  }
+
+  document.getElementById('defi-reponse').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') validerDefi();
+  });
+}
+
+function validerDefi() {
+  const defi = defiDuJour();
+  const saisie = document.getElementById('defi-reponse').value;
+  const message = document.getElementById('defi-message');
+  if (!saisie.trim()) return;
+
+  const correct = defi.type === 'calcul'
+    ? parseFloat(saisie.replace(',', '.')) === defi.reponse
+    : normaliserReponse(saisie) === normaliserReponse(defi.reponse);
+
+  if (correct) {
+    localStorage.setItem('defi_' + dateAujourdhui(), 'reussi');
+    document.getElementById('defi-jour').classList.add('resolu');
+    document.getElementById('defi-zone').style.display = 'none';
+    message.className = 'defi-message ok';
+    message.textContent = 'Bravo Baptiste, bonne réponse ! 🎉';
+    if (window.confetti) {
+      confetti({ particleCount: 80, spread: 80, origin: { y: 0.6 }, colors: ['#D97757', '#E3A93C', '#6E9F5C', '#3E7A8C'] });
+    }
+  } else {
+    message.className = 'defi-message non';
+    message.textContent = "Pas tout à fait... essaie encore ! 💪";
+  }
+}
+
 async function initPage() {
   majLabelJour();
+  initDefiJour();
   await chargerTachesEnfant();
   chargerScores();
 }
