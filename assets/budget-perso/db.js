@@ -1,6 +1,8 @@
 // Stockage 100% local (IndexedDB). Rien ne part sur un serveur : les donnees restent
 // dans le navigateur de l'appareil. Un seul enregistrement "config" + des collections.
 
+import { toISODate } from './calc.js';
+
 const DB_NAME = 'budget-perso';
 const DB_VERSION = 1;
 const STORES = ['config', 'transactions', 'dettes', 'virementsHebdo', 'objectifs', 'evenements', 'reglesImport'];
@@ -83,6 +85,9 @@ export const CONFIG_DEFAUT = {
   coussinActuel: 0,
   epargneActuelle: 2800,
   dernierSolde: { montant: 0, date: null },
+  // Tout ce qui precede cette date est neutralise : le cycle en cours continue de servir
+  // de reference (dates, nb de lundis...) mais rien avant n'est compte ni a rattraper.
+  dateDemarrage: null,
 
   categories: [
     { id: 'carburant', libelle: 'Carburant', enveloppe: true },
@@ -165,7 +170,7 @@ export const REGLES_IMPORT_DEFAUT = [
 export async function initialiserSiVide() {
   const config = await get('config', 'config');
   if (!config) {
-    await put('config', CONFIG_DEFAUT);
+    await put('config', { ...CONFIG_DEFAUT, dateDemarrage: toISODate(new Date()) });
   }
   const dettes = await getAll('dettes');
   if (!dettes.length) {
@@ -178,7 +183,12 @@ export async function initialiserSiVide() {
 }
 
 export async function getConfig() {
-  return (await get('config', 'config')) || CONFIG_DEFAUT;
+  const config = (await get('config', 'config')) || CONFIG_DEFAUT;
+  if (!config.dateDemarrage) {
+    config.dateDemarrage = toISODate(new Date());
+    await sauverConfig(config);
+  }
+  return config;
 }
 
 export async function sauverConfig(config) {

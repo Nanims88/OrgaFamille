@@ -22,6 +22,16 @@ export function addDays(date, n) {
   return d;
 }
 
+// Lundi de la semaine contenant date (semaine ISO, lundi->dimanche).
+export function lundiDeLaSemaine(date) {
+  const d = new Date(date);
+  const jour = d.getDay();
+  const decalage = jour === 0 ? -6 : 1 - jour;
+  d.setDate(d.getDate() + decalage);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
 // Cycle budgétaire : du jourCycle du mois M au (jourCycle - 1) du mois M+1.
 // debut peut être une Date ou une string ISO.
 export function finDeCycle(debut) {
