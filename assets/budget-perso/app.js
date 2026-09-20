@@ -1002,6 +1002,9 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('date-jour').textContent = new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
   demarrerPortail();
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('assets/budget-perso/sw.js').catch(() => {});
+    // sw.js est a la racine du site (pas dans assets/budget-perso/) : un service worker
+    // ne peut jamais controler une page en dehors du dossier qui le contient, donc un SW
+    // place ici ne controlerait jamais budget-perso.html lui-meme.
+    navigator.serviceWorker.register('sw.js').catch(() => {});
   }
 });

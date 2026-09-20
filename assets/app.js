@@ -95,4 +95,5 @@ function lundiDeLaSemaine(date) {
 document.addEventListener('DOMContentLoaded', () => {
   marquerNavActive();
   demarrerPortail();
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
 });
