@@ -1,0 +1,8 @@
+{
+  "name": "orgafamille-budget-perso",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/"
+  }
+}
