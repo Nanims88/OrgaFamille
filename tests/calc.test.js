@@ -12,8 +12,15 @@ import {
   affectationFinDeCycle,
   affectationBonus,
   progressionObjectif,
-  toISODate
+  toISODate,
+  lundiDeLaSemaine
 } from '../assets/budget-perso/calc.js';
+
+test('lundiDeLaSemaine : retrouve le lundi de la semaine, y compris un dimanche', () => {
+  assert.equal(toISODate(lundiDeLaSemaine(new Date(2026, 8, 23))), '2026-09-21'); // mercredi -> lundi meme semaine
+  assert.equal(toISODate(lundiDeLaSemaine(new Date(2026, 8, 20))), '2026-09-14'); // dimanche -> lundi semaine precedente
+  assert.equal(toISODate(lundiDeLaSemaine(new Date(2026, 8, 21))), '2026-09-21'); // deja un lundi
+});
 
 test('cycle 25/10/2026 -> 24/11/2026 : 5 lundis, enveloppe 148.40', () => {
   const debut = new Date(2026, 9, 25);

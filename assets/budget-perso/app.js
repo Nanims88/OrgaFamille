@@ -133,23 +133,22 @@ function totalChargesFixes(config) {
   return config.chargesFixes.reduce((s, c) => s + c.montant, 0);
 }
 
-function lundiCourant(refDate = new Date()) {
-  const d = new Date(refDate);
-  const jour = d.getDay();
-  const decalage = jour === 0 ? -6 : 1 - jour;
-  d.setDate(d.getDate() + decalage);
-  d.setHours(0, 0, 0, 0);
-  return d;
+// Lundi de la semaine ou commence le suivi : tout ce qui est avant est neutralise
+// (le cycle garde ses vraies dates, mais rien avant le demarrage n'est a rattraper).
+function seuilLundiSuivi(config) {
+  return C.toISODate(C.lundiDeLaSemaine(C.parseISODate(config.dateDemarrage)));
 }
 
 async function resteSemaineCourante() {
   const { config, debut, fin, enveloppeHebdo } = await infosCycle();
-  const lundis = C.listerLundis(debut, fin);
+  const seuil = seuilLundiSuivi(config);
+  const lundis = C.listerLundis(debut, fin).filter(l => C.toISODate(l) >= seuil);
   const virements = await DB.getAll('virementsHebdo');
   const idsCategoriesEnveloppe = new Set(config.categories.filter(c => c.enveloppe).map(c => c.id));
 
   let reportPrecedent = 0;
   let derniereSemaine = null;
+  let semaineCourante = null;
   for (const lundi of lundis) {
     const dateLundi = C.toISODate(lundi);
     const dimanche = C.addDays(lundi, 6);
@@ -159,16 +158,19 @@ async function resteSemaineCourante() {
     const virement = virements.find(v => v.dateLundi === dateLundi);
     const montantVirement = virement ? virement.montantVirement : enveloppeHebdo;
     const { disponible, reste } = C.soldeSemaine({ budgetSemaine: montantVirement, reportPrecedent, depense });
-    derniereSemaine = { dateLundi, dateFinSemaine, disponible, reste, depense, montantVirement, aujourdhui: lundi <= new Date() && new Date() <= dimanche };
+    const aujourdhui = dateLundi <= auj() && auj() <= dateFinSemaine;
+    derniereSemaine = { dateLundi, dateFinSemaine, disponible, reste, depense, montantVirement, aujourdhui };
     reportPrecedent = reste;
+    if (aujourdhui) { semaineCourante = derniereSemaine; break; }
   }
-  return derniereSemaine;
+  // La semaine en cours prime : sans ca, la derniere semaine du cycle (future) ecraserait l'affichage.
+  return semaineCourante || derniereSemaine;
 }
 
 async function renderAccueil(zone) {
   const { config, debut, fin, enveloppeHebdo, budgetCycleEnveloppe } = await infosCycle();
-  const semaine = await resteSemaineCourante();
-  const transactionsCycle = await transactionsEntre(C.toISODate(debut), C.toISODate(fin));
+  const semaine = await resteSemaineCourante() || { dateLundi: config.dateDemarrage, reste: budgetCycleEnveloppe, disponible: 0, depense: 0, montantVirement: enveloppeHebdo };
+  const transactionsCycle = (await transactionsEntre(C.toISODate(debut), C.toISODate(fin))).filter(t => t.date >= config.dateDemarrage);
   const idsEnveloppe = new Set(config.categories.filter(c => c.enveloppe).map(c => c.id));
   const depenseCycle = totalDepenses(transactionsCycle, id => idsEnveloppe.has(id));
   const resteCycle = C.round2(budgetCycleEnveloppe - depenseCycle);
@@ -195,6 +197,8 @@ async function renderAccueil(zone) {
         <div class="valeur">${eur(config.coussinActuel)} / ${eur(config.coussinCible)}</div>
       </div>
     </div>
+
+    ${config.dateDemarrage > C.toISODate(debut) ? `<p style="font-size:.78rem;color:var(--ink-soft);margin:-6px 0 14px">Suivi actif depuis le ${dateFR(config.dateDemarrage)} — rien avant n'est compte ni a rattraper.</p>` : ''}
 
     <div class="carte jauge-ligne">
       <div class="jauge-entete"><span>Semaine du ${dateFR(semaine.dateLundi)}</span><span>${eur(semaine.reste)} restant</span></div>
@@ -347,6 +351,7 @@ async function rafraichirHistoriqueSaisie(zone) {
 
 async function renderSemaine(zone) {
   const { config, debut, fin, enveloppeHebdo } = await infosCycle();
+  const seuil = seuilLundiSuivi(config);
   const lundis = C.listerLundis(debut, fin);
   const virements = await DB.getAll('virementsHebdo');
   const idsEnveloppe = new Set(config.categories.filter(c => c.enveloppe).map(c => c.id));
@@ -355,6 +360,11 @@ async function renderSemaine(zone) {
   const lignes = [];
   for (const lundi of lundis) {
     const dateLundi = C.toISODate(lundi);
+    const neutralisee = dateLundi < seuil;
+    if (neutralisee) {
+      lignes.push({ dateLundi, neutralisee: true });
+      continue;
+    }
     const dimanche = C.addDays(lundi, 6);
     const dateFinSemaine = C.toISODate(dimanche <= fin ? dimanche : fin);
     const transactionsSemaine = await transactionsEntre(dateLundi, dateFinSemaine);
@@ -368,8 +378,13 @@ async function renderSemaine(zone) {
   }
 
   zone.innerHTML = `
-    <p style="color:var(--ink-soft)">Cycle du ${dateFR(C.toISODate(debut))} au ${dateFR(C.toISODate(fin))} — ${lundis.length} lundi(s), enveloppe theorique ${eur(enveloppeHebdo)}/semaine.</p>
-    ${lignes.map(l => `
+    <p style="color:var(--ink-soft)">Cycle du ${dateFR(C.toISODate(debut))} au ${dateFR(C.toISODate(fin))} — ${lundis.length} lundi(s), enveloppe theorique ${eur(enveloppeHebdo)}/semaine. Suivi actif depuis le ${dateFR(config.dateDemarrage)}.</p>
+    ${lignes.map(l => l.neutralisee ? `
+      <div class="carte jauge-ligne" style="opacity:.55">
+        <div class="jauge-entete"><span>Semaine du ${dateFR(l.dateLundi)}</span><span>avant le demarrage</span></div>
+        <p style="font-size:.8rem;color:var(--ink-soft);margin:6px 0 0">Non suivie, rien a valider.</p>
+      </div>
+    ` : `
       <div class="carte jauge-ligne">
         <div class="jauge-entete">
           <span>Semaine du ${dateFR(l.dateLundi)} au ${dateFR(l.dateFinSemaine)}</span>
@@ -393,7 +408,7 @@ async function renderSemaine(zone) {
 
 async function renderCycle(zone) {
   const { config, debut, fin, budgetCycleEnveloppe, nbLundis } = await infosCycle();
-  const transactions = await transactionsEntre(C.toISODate(debut), C.toISODate(fin));
+  const transactions = (await transactionsEntre(C.toISODate(debut), C.toISODate(fin))).filter(t => t.date >= config.dateDemarrage);
   const budgetsCategorie = {
     carburant: C.round2(C.carburantHebdo(config.enveloppe.carburant) * nbLundis),
     courses: config.enveloppe.coursesMensuel,
@@ -410,7 +425,7 @@ async function renderCycle(zone) {
   const ecart = C.round2(config.revenuNetMensuel - chargesFixesTotal - budgetCycleEnveloppe);
 
   zone.innerHTML = `
-    <p style="color:var(--ink-soft)">Cycle du ${dateFR(C.toISODate(debut))} au ${dateFR(C.toISODate(fin))}</p>
+    <p style="color:var(--ink-soft)">Cycle du ${dateFR(C.toISODate(debut))} au ${dateFR(C.toISODate(fin))} — reel compte depuis le ${dateFR(config.dateDemarrage)}</p>
     <div class="stat-grid">
       <div class="stat-carte"><div class="label">Revenu</div><div class="valeur">${eur(config.revenuNetMensuel)}</div></div>
       <div class="stat-carte"><div class="label">Charges fixes</div><div class="valeur">${eur(chargesFixesTotal)}</div></div>
@@ -614,7 +629,7 @@ async function calculerObjectifs() {
   const config = await DB.getConfig();
   const dettes = await DB.getAll('dettes');
   const { debut, fin } = C.cycleContenant(new Date(), config.jourCycle);
-  const transactionsCycle = await transactionsEntre(C.toISODate(debut), C.toISODate(fin));
+  const transactionsCycle = (await transactionsEntre(C.toISODate(debut), C.toISODate(fin))).filter(t => t.date >= config.dateDemarrage);
 
   return config.objectifs.map(o => {
     if (o.type === 'montant') {
@@ -741,6 +756,11 @@ async function renderParametres(zone) {
     <h2 class="section-titre" style="margin-top:0">Cycle et revenu</h2>
     <div class="carte">
       <div class="champ-groupe"><label>Jour de debut du cycle</label><input id="p-jour-cycle" type="number" min="1" max="28" value="${config.jourCycle}"></div>
+      <div class="champ-groupe">
+        <label>Date de demarrage du suivi</label>
+        <input id="p-date-demarrage" type="date" value="${config.dateDemarrage}">
+        <span style="font-size:.75rem;color:var(--ink-soft)">Rien avant cette date n'est compte ni a rattraper (semaines, cycle, objectifs).</span>
+      </div>
       <div class="champ-groupe"><label>Revenu net mensuel</label><input id="p-revenu" type="number" step="0.01" value="${config.revenuNetMensuel}"></div>
       <div class="champ-groupe"><label>Decouvert autorise</label><input id="p-decouvert" type="number" step="0.01" value="${config.decouvertAutorise}"></div>
       <div class="champ-groupe"><label>Taux agios annuel (%)</label><input id="p-agios" type="number" step="0.01" value="${config.tauxAgios}"></div>
@@ -817,6 +837,7 @@ async function renderParametres(zone) {
 
   document.getElementById('p-sauver').addEventListener('click', async () => {
     config.jourCycle = parseInt(document.getElementById('p-jour-cycle').value, 10);
+    config.dateDemarrage = document.getElementById('p-date-demarrage').value || config.dateDemarrage;
     config.revenuNetMensuel = parseFloat(document.getElementById('p-revenu').value);
     config.decouvertAutorise = parseFloat(document.getElementById('p-decouvert').value);
     config.seuilDecouvertAutorise = -Math.abs(config.decouvertAutorise);
