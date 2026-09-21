@@ -158,8 +158,10 @@ async function resteSemaineCourante() {
     const virement = virements.find(v => v.dateLundi === dateLundi);
     const montantVirement = virement ? virement.montantVirement : enveloppeHebdo;
     const { disponible, reste } = C.soldeSemaine({ budgetSemaine: montantVirement, reportPrecedent, depense });
+    // Pas encore vire : ce qu'il reste a virer tient deja compte des saisies faites cette semaine.
+    const virementSuggere = virement ? virement.montantVirement : Math.max(0, reste);
     const aujourdhui = dateLundi <= auj() && auj() <= dateFinSemaine;
-    derniereSemaine = { dateLundi, dateFinSemaine, disponible, reste, depense, montantVirement, aujourdhui };
+    derniereSemaine = { dateLundi, dateFinSemaine, disponible, reste, depense, montantVirement: virementSuggere, fait: !!virement, aujourdhui };
     reportPrecedent = reste;
     if (aujourdhui) { semaineCourante = derniereSemaine; break; }
   }
@@ -181,22 +183,22 @@ async function renderAccueil(zone) {
   const pourcentSemaine = semaine.disponible > 0 ? Math.min(100, Math.max(0, (semaine.reste / semaine.disponible) * 100)) : 0;
   const classeJaugeSemaine = semaine.reste < 0 ? 'danger' : (pourcentSemaine < 25 ? 'attention' : '');
 
-  let soldeTheoriqueHTML = '';
+  let soldePrincipal = config.dernierSolde.montant;
+  let soldeDetailHTML = '<div style="font-size:.75rem;color:var(--ink-soft)">aucun solde saisi</div>';
   if (config.dernierSolde.date) {
     const mouvementsDepuis = (await DB.getAll('transactions')).filter(t => t.compte === 'principal' && t.date > config.dernierSolde.date);
-    if (mouvementsDepuis.length) {
-      const theorique = C.soldeTheorique({ soldeInitial: config.dernierSolde.montant, transactions: mouvementsDepuis });
-      soldeTheoriqueHTML = `<div style="font-size:.78rem;color:var(--ink-soft);margin-top:2px">≈ ${eur(theorique)} avec tes saisies depuis</div>`;
-    }
+    soldePrincipal = C.soldeTheorique({ soldeInitial: config.dernierSolde.montant, transactions: mouvementsDepuis });
+    soldeDetailHTML = mouvementsDepuis.length
+      ? `<div style="font-size:.75rem;color:var(--ink-soft)">solde saisi ${eur(config.dernierSolde.montant)} le ${dateFR(config.dernierSolde.date)}</div>`
+      : `<div style="font-size:.75rem;color:var(--ink-soft)">saisi le ${dateFR(config.dernierSolde.date)}</div>`;
   }
 
   zone.innerHTML = `
     <div class="stat-grid">
-      <div class="stat-carte ${config.dernierSolde.montant < 0 ? 'negatif' : 'positif'}">
+      <div class="stat-carte ${soldePrincipal < 0 ? 'negatif' : 'positif'}">
         <div class="label">Solde compte principal</div>
-        <div class="valeur">${eur(config.dernierSolde.montant)}</div>
-        <div style="font-size:.75rem;color:var(--ink-soft)">${config.dernierSolde.date ? 'saisi le ' + dateFR(config.dernierSolde.date) : 'non saisi'}</div>
-        ${soldeTheoriqueHTML}
+        <div class="valeur">${eur(soldePrincipal)}</div>
+        ${soldeDetailHTML}
       </div>
       <div class="stat-carte ${resteCycle < 0 ? 'negatif' : 'positif'}">
         <div class="label">Reste du cycle (enveloppe)</div>
@@ -213,7 +215,7 @@ async function renderAccueil(zone) {
     <div class="carte jauge-ligne">
       <div class="jauge-entete"><span>Semaine du ${dateFR(semaine.dateLundi)}</span><span>${eur(semaine.reste)} restant</span></div>
       <div class="jauge-fond"><div class="jauge-barre ${classeJaugeSemaine}" style="width:${pourcentSemaine}%"></div></div>
-      <p style="font-size:.82rem;color:var(--ink-soft);margin:8px 0 0">Virement du lundi : ${eur(semaine.montantVirement)} — depense : ${eur(semaine.depense)}</p>
+      <p style="font-size:.82rem;color:var(--ink-soft);margin:8px 0 0">Virement ${semaine.fait ? '' : '(suggere) '}: ${eur(semaine.montantVirement)} — depense : ${eur(semaine.depense)}</p>
       <p style="font-size:.72rem;color:var(--ink-soft);margin:4px 0 0">Enveloppe theorique : ${eur(enveloppeHebdo)}/semaine</p>
     </div>
 
@@ -475,7 +477,9 @@ async function renderSemaine(zone) {
     const montantVirement = virement ? virement.montantVirement : null;
     const budgetEffectif = montantVirement !== null ? montantVirement : enveloppeHebdo;
     const { disponible, reste } = C.soldeSemaine({ budgetSemaine: budgetEffectif, reportPrecedent, depense });
-    lignes.push({ dateLundi, dateFinSemaine, disponible, reste, depense, montantVirement, budgetEffectif, fait: !!virement });
+    // Pas encore vire : le montant suggere tient compte des saisies deja faites cette semaine (se reajuste tout seul).
+    const virementSuggere = virement ? montantVirement : Math.max(0, reste);
+    lignes.push({ dateLundi, dateFinSemaine, disponible, reste, depense, montantVirement, virementSuggere, fait: !!virement });
     reportPrecedent = reste;
   }
 
@@ -493,8 +497,8 @@ async function renderSemaine(zone) {
           <span>${eur(l.reste)} restant</span>
         </div>
         <div class="jauge-fond"><div class="jauge-barre ${l.reste < 0 ? 'danger' : ''}" style="width:${l.disponible > 0 ? Math.min(100, Math.max(0, l.reste / l.disponible * 100)) : 0}%"></div></div>
-        <p style="font-size:.82rem;color:var(--ink-soft);margin:8px 0 0">Disponible : ${eur(l.disponible)} (virement ${l.fait ? eur(l.montantVirement) : 'a faire, ' + eur(l.budgetEffectif)}) — Depense : ${eur(l.depense)}</p>
-        ${!l.fait ? `<button class="btn" data-lundi="${l.dateLundi}" data-montant="${l.budgetEffectif}" style="margin-top:8px">Faire le virement (${eur(l.budgetEffectif)})</button>` : ''}
+        <p style="font-size:.82rem;color:var(--ink-soft);margin:8px 0 0">Disponible : ${eur(l.disponible)} (virement ${l.fait ? eur(l.montantVirement) : 'a faire, ' + eur(l.virementSuggere)}) — Depense : ${eur(l.depense)}</p>
+        ${!l.fait ? `<button class="btn" data-lundi="${l.dateLundi}" data-montant="${l.virementSuggere}" style="margin-top:8px">Faire le virement (${eur(l.virementSuggere)})</button>` : ''}
       </div>
     `).join('')}
   `;
