@@ -280,22 +280,37 @@ async function rendreListeObjectifsCourte() {
     </div>`).join('')}</div>`;
 }
 
+const CATEGORIES_REVENU = [
+  { id: 'salaire', libelle: 'Salaire' },
+  { id: 'remboursement', libelle: 'Remboursement' },
+  { id: 'cadeau', libelle: 'Cadeau / don' },
+  { id: 'rachat_av', libelle: 'Rachat assurance-vie' },
+  { id: 'autre_revenu', libelle: 'Autre revenu' }
+];
+
 let categorieChoisie = null;
+let typeSaisie = 'depense';
 async function renderSaisie(zone) {
   const config = await DB.getConfig();
   categorieChoisie = null;
+  typeSaisie = 'depense';
   zone.innerHTML = `
     <div class="carte">
       <h2 class="section-titre" style="margin-top:0">Saisie rapide</h2>
       <div class="champ-groupe">
-        <label>Montant depense (EUR)</label>
+        <label>Type</label>
+        <div class="chips" id="saisie-type">
+          <button type="button" class="chip actif" data-type="depense">➖ Depense</button>
+          <button type="button" class="chip" data-type="revenu">➕ Revenu</button>
+        </div>
+      </div>
+      <div class="champ-groupe">
+        <label>Montant (EUR)</label>
         <input id="saisie-montant" type="number" step="0.01" inputmode="decimal" placeholder="0.00" style="font-size:1.4rem;padding:12px;border-radius:10px;border:2px solid var(--border);">
       </div>
       <div class="champ-groupe">
         <label>Categorie</label>
-        <div class="chips" id="saisie-categories">
-          ${config.categories.map(c => `<button type="button" class="chip" data-cat="${c.id}">${c.libelle}</button>`).join('')}
-        </div>
+        <div class="chips" id="saisie-categories"></div>
       </div>
       <div class="champ-groupe">
         <label>Compte</label>
@@ -310,11 +325,27 @@ async function renderSaisie(zone) {
     <h2 class="section-titre">Dernieres saisies</h2>
     <div class="carte" id="saisie-historique"></div>
   `;
-  zone.querySelectorAll('#saisie-categories .chip').forEach(btn => {
+
+  const rafraichirCategories = () => {
+    const liste = typeSaisie === 'revenu' ? CATEGORIES_REVENU : config.categories;
+    categorieChoisie = null;
+    zone.querySelector('#saisie-categories').innerHTML = liste.map(c => `<button type="button" class="chip" data-cat="${c.id}">${c.libelle}</button>`).join('');
+    zone.querySelectorAll('#saisie-categories .chip').forEach(btn => {
+      btn.addEventListener('click', () => {
+        zone.querySelectorAll('#saisie-categories .chip').forEach(b => b.classList.remove('actif'));
+        btn.classList.add('actif');
+        categorieChoisie = btn.dataset.cat;
+      });
+    });
+  };
+  rafraichirCategories();
+
+  zone.querySelectorAll('#saisie-type .chip').forEach(btn => {
     btn.addEventListener('click', () => {
-      zone.querySelectorAll('#saisie-categories .chip').forEach(b => b.classList.remove('actif'));
+      zone.querySelectorAll('#saisie-type .chip').forEach(b => b.classList.remove('actif'));
       btn.classList.add('actif');
-      categorieChoisie = btn.dataset.cat;
+      typeSaisie = btn.dataset.type;
+      rafraichirCategories();
     });
   });
   zone.querySelectorAll('#saisie-comptes .chip').forEach(btn => {
@@ -328,12 +359,13 @@ async function enregistrerSaisie(zone, compte) {
   const message = document.getElementById('saisie-message');
   if (!montant || montant <= 0) { message.style.color = 'var(--danger)'; message.textContent = 'Indique un montant.'; return; }
   if (!categorieChoisie) { message.style.color = 'var(--danger)'; message.textContent = 'Choisis une categorie.'; return; }
+  const montantSigne = typeSaisie === 'revenu' ? Math.abs(montant) : -Math.abs(montant);
   await DB.put('transactions', {
-    id: DB.nouvelId(), date: auj(), categorie: categorieChoisie, compte, montant: -Math.abs(montant), libelle: 'Saisie rapide'
+    id: DB.nouvelId(), date: auj(), categorie: categorieChoisie, compte, montant: montantSigne, libelle: 'Saisie rapide'
   });
   document.getElementById('saisie-montant').value = '';
   categorieChoisie = null;
-  zone.querySelectorAll('.chip').forEach(b => b.classList.remove('actif'));
+  zone.querySelectorAll('#saisie-categories .chip').forEach(b => b.classList.remove('actif'));
   message.style.color = 'var(--ok)';
   message.textContent = 'Ajoute ✅';
   await rafraichirHistoriqueSaisie(zone);
