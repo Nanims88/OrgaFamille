@@ -13,7 +13,8 @@ import {
   affectationBonus,
   progressionObjectif,
   toISODate,
-  lundiDeLaSemaine
+  lundiDeLaSemaine,
+  soldeTheorique
 } from '../assets/budget-perso/calc.js';
 
 test('lundiDeLaSemaine : retrouve le lundi de la semaine, y compris un dimanche', () => {
@@ -100,6 +101,18 @@ test('progression objectif : bornee entre 0 et 100', () => {
   assert.equal(progressionObjectif(1500, 3000), 50);
   assert.equal(progressionObjectif(4000, 3000), 100);
   assert.equal(progressionObjectif(-50, 3000), 0);
+});
+
+test('soldeTheorique : additionne le solde saisi et les mouvements depuis', () => {
+  const r = soldeTheorique({
+    soldeInitial: -649.75,
+    transactions: [{ montant: -12.5 }, { montant: 50 }, { montant: -8.5 }]
+  });
+  assert.equal(r, -620.75);
+});
+
+test('soldeTheorique : sans mouvement, renvoie le solde saisi tel quel', () => {
+  assert.equal(soldeTheorique({ soldeInitial: 120, transactions: [] }), 120);
 });
 
 test('scenario 20/09/2026 : detecte le trou de tresorerie et le montant a couvrir avant la paie', () => {

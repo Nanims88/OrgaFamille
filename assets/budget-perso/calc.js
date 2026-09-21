@@ -207,6 +207,12 @@ export function projectionTresorerie({ soldeInitial, dateDebut, mouvements, seui
   };
 }
 
+// Solde theorique = dernier solde saisi + toutes les transactions enregistrees depuis.
+// Reste un calcul indicatif : seule une nouvelle saisie manuelle du solde reel fait foi.
+export function soldeTheorique({ soldeInitial, transactions }) {
+  return round2(transactions.reduce((s, t) => s + t.montant, soldeInitial));
+}
+
 // Répartition d'un revenu exceptionnel (bonus / rachat AV) selon les règles paramétrables.
 export function affectationBonus({ bonusTotal, noel = 0, izicarteRestant = 0, partPretAuto = 0.6, partLivret = 0.4 }) {
   let reste = round2(bonusTotal);
