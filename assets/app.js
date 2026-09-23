@@ -15,7 +15,8 @@ async function verifierMotDePasse() {
     document.getElementById('app').classList.add('pret');
     initPage();
   } else {
-    document.getElementById('gate-erreur').textContent = "Email ou mot de passe incorrect.";
+    console.error('Erreur de connexion Supabase :', error);
+    document.getElementById('gate-erreur').textContent = "Connexion refusée : " + error.message;
   }
 }
 
