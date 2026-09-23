@@ -3,18 +3,19 @@ const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 const JOURS = ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"];
 
-// ---------- Portail mot de passe ----------
-// Un seul champ mot de passe cote UI (comme avant), mais authentifie via un vrai compte
-// Supabase Auth derriere : c'est ce qui permet aux regles RLS de bloquer l'acces anonyme.
+// ---------- Portail de connexion ----------
+// Vrai compte Supabase Auth par personne (email + mot de passe) : c'est cette session
+// authentifiee qui permet aux regles RLS de bloquer l'acces anonyme.
 async function verifierMotDePasse() {
+  const email = document.getElementById('gate-email').value;
   const saisie = document.getElementById('gate-input').value;
-  const { error } = await sb.auth.signInWithPassword({ email: FAMILLE_AUTH_EMAIL, password: saisie });
+  const { error } = await sb.auth.signInWithPassword({ email, password: saisie });
   if (!error) {
     document.getElementById('gate').style.display = 'none';
     document.getElementById('app').classList.add('pret');
     initPage();
   } else {
-    document.getElementById('gate-erreur').textContent = "Mot de passe incorrect, réessaie.";
+    document.getElementById('gate-erreur').textContent = "Email ou mot de passe incorrect.";
   }
 }
 

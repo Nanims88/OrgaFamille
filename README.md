@@ -29,9 +29,9 @@ Toutes les pages partagent la même en-tête, la même navigation (`nav.modules`
 
 ### Authentification
 
-L'accès est protégé par un **mot de passe familial unique** (un seul champ, pas de compte individuel), mais authentifié via un **vrai compte Supabase Auth** partagé (`FAMILLE_AUTH_EMAIL` dans `assets/config.js`) : la saisie est envoyée à `sb.auth.signInWithPassword()`, pas comparée localement. C'est cette session authentifiée qui satisfait les règles **Row Level Security (RLS)** activées sur toutes les tables — sans elle, l'API Supabase refuse toute lecture/écriture, même avec la clé `anon` (publique dans le code source).
+L'accès est protégé par un **vrai compte Supabase Auth par personne** (email + mot de passe, via `sb.auth.signInWithPassword()`) — pas de hash local ni de mot de passe en clair dans le code. C'est cette session authentifiée qui satisfait les règles **Row Level Security (RLS)** activées sur toutes les tables : sans elle, l'API Supabase refuse toute lecture/écriture, même avec la clé `anon` (publique dans le code source).
 
-Pour changer le mot de passe : Supabase > Authentication > Users > cet utilisateur > « Reset password ».
+Pour ajouter quelqu'un ou changer un mot de passe : Supabase > Authentication > Users.
 
 ## Modèle de données (tables Supabase)
 
