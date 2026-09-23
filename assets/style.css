@@ -95,6 +95,11 @@ a { color: inherit; }
 }
 .btn:hover, #gate button:hover { transform: translateY(-1px); box-shadow: 0 4px 0 rgba(0,0,0,.12); }
 .btn:active, #gate button:active { transform: translateY(1px); box-shadow: 0 1px 0 rgba(0,0,0,.12); }
+
+/* Variantes de bouton reutilisees partout (evite de repeter le meme style inline) */
+.btn-discret { background: var(--ink-soft); }
+.btn-clair { background: var(--paper); color: var(--ink); box-shadow: var(--shadow-1); }
+.btn-icone { background: transparent; color: var(--ink-soft); box-shadow: none; padding: 2px 8px; }
 #gate .erreur { color: var(--maman); font-weight: 700; min-height: 1.2em; font-size: 0.9rem; }
 
 /* ---------- Structure générale ---------- */

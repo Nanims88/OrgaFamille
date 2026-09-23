@@ -90,7 +90,7 @@
         <select id="e-depose"><option value="">Dépose : —</option></select>
         <select id="e-recupere"><option value="">Récupère : —</option></select>
         <button class="btn" type="submit" id="e-submit">Ajouter</button>
-        <button class="btn" type="button" id="e-annuler" style="display:none;background:var(--ink-soft);" onclick="annulerEditionEvenement()">Annuler</button>
+        <button class="btn btn-discret" type="button" id="e-annuler" style="display:none;" onclick="annulerEditionEvenement()">Annuler</button>
       </form>
     </div>
 
@@ -115,7 +115,7 @@
         <input type="time" id="p-debut">
         <input type="time" id="p-fin">
         <button class="btn" type="submit" id="p-submit">Ajouter</button>
-        <button class="btn" type="button" id="p-annuler" style="display:none;background:var(--ink-soft);" onclick="annulerEditionPlanning()">Annuler</button>
+        <button class="btn btn-discret" type="button" id="p-annuler" style="display:none;" onclick="annulerEditionPlanning()">Annuler</button>
       </form>
     </div>
 
@@ -170,8 +170,8 @@ async function chargerEvenements() {
         </div>
         ${depose || recupere ? `<div style="margin-top:6px;font-size:0.85rem;color:var(--ink-soft);">🚗 ${depose ? 'Dépose : ' + depose.nom : ''} ${recupere ? '· Récupère : ' + recupere.nom : ''}</div>` : ''}
         <div style="margin-top:10px;display:flex;gap:6px;">
-          <button class="btn" style="background:var(--paper);color:var(--ink);box-shadow:var(--shadow-1);" onclick="modifierEvenement('${e.id}')">✏️ Modifier</button>
-          <button class="btn" style="background:var(--ink-soft);" onclick="supprimerEvenement('${e.id}')">Supprimer</button>
+          <button class="btn btn-clair" onclick="modifierEvenement('${e.id}')">✏️ Modifier</button>
+          <button class="btn btn-discret" onclick="supprimerEvenement('${e.id}')">Supprimer</button>
         </div>
       </div>
     `;

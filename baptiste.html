@@ -232,7 +232,7 @@ async function chargerTachesEnfant() {
     ${exclues.map(t => `
       <div class="item-ligne" style="justify-content:center;gap:8px;color:var(--ink-soft);">
         <span>${t.icone || '🧹'} ${t.libelle}</span>
-        <button class="btn" style="background:var(--paper);color:var(--ink);box-shadow:var(--shadow-1);padding:4px 10px;font-size:0.8rem;" onclick="restaurerTacheJour('${t.id}', '${dateVue}')">↩️ Remettre</button>
+        <button class="btn btn-clair" style="padding:4px 10px;font-size:0.8rem;" onclick="restaurerTacheJour('${t.id}', '${dateVue}')">↩️ Remettre</button>
       </div>
     `).join('')}
   ` : '';

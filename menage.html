@@ -94,7 +94,7 @@
         <label id="f-date-zone" style="display:none;font-size:0.85rem;color:var(--ink-soft);">Date envisagée : <input type="date" id="f-date"></label>
         <input type="text" id="f-icone" placeholder="Icône (ex: 🧺)" style="width:90px" value="🧹">
         <button class="btn" type="submit" id="f-submit">Ajouter</button>
-        <button class="btn" type="button" id="f-annuler" style="display:none;background:var(--ink-soft);" onclick="annulerEditionTache()">Annuler</button>
+        <button class="btn btn-discret" type="button" id="f-annuler" style="display:none;" onclick="annulerEditionTache()">Annuler</button>
       </form>
     </div>
 
@@ -103,7 +103,7 @@
     <div class="grille-cartes" id="liste-taches"></div>
 
     <p style="margin-top:20px;">
-      <button class="btn" style="background:var(--paper);color:var(--ink);box-shadow:var(--shadow-1);" onclick="basculerArchives()" id="btn-archives">🗄️ Voir les tâches terminées / supprimées</button>
+      <button class="btn btn-clair" onclick="basculerArchives()" id="btn-archives">🗄️ Voir les tâches terminées / supprimées</button>
     </p>
     <div class="grille-cartes" id="liste-archives" style="display:none;margin-top:12px;"></div>
 
@@ -153,9 +153,9 @@ async function chargerTaches() {
           ${badgeMembre(m)}
         </div>
         <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap;">
-          <button class="btn" style="background:var(--paper);color:var(--ink);box-shadow:var(--shadow-1);" onclick="modifierTache('${t.id}')">✏️ Modifier</button>
+          <button class="btn btn-clair" onclick="modifierTache('${t.id}')">✏️ Modifier</button>
           ${t.frequence === 'ponctuel' ? `<button class="btn" style="background:var(--louis)" onclick="terminerTache('${t.id}')">✅ Terminé</button>` : ''}
-          <button class="btn" style="background:var(--ink-soft)" onclick="supprimerTache('${t.id}')">🗑️ Supprimer</button>
+          <button class="btn btn-discret" onclick="supprimerTache('${t.id}')">🗑️ Supprimer</button>
         </div>
       </div>
     `;

@@ -168,7 +168,7 @@
           <option value="50-50">50 / 50</option>
         </select>
         <button class="btn" type="submit" id="ce-submit">Ajouter</button>
-        <button class="btn" type="button" id="ce-annuler" style="display:none;background:var(--ink-soft);" onclick="annulerEditionChargeEnfant()">Annuler</button>
+        <button class="btn btn-discret" type="button" id="ce-annuler" style="display:none;" onclick="annulerEditionChargeEnfant()">Annuler</button>
       </form>
     </div>
 
@@ -177,7 +177,7 @@
 
     <h2 class="section-titre" style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
       <span>Charges fixes</span>
-      <button class="btn" style="background:var(--paper);color:var(--ink);box-shadow:var(--shadow-1);font-size:0.8rem;padding:6px 12px;" onclick="basculerSection('charges-fixes')" id="btn-section-charges-fixes">Afficher</button>
+      <button class="btn btn-clair" style="font-size:0.8rem;padding:6px 12px;" onclick="basculerSection('charges-fixes')" id="btn-section-charges-fixes">Afficher</button>
     </h2>
     <div id="section-charges-fixes" style="display:none;">
       <p style="color:var(--ink-soft);font-size:0.9rem;margin-top:-6px;">Utilise un montant négatif pour une entrée d'argent (CAF, aides...) — elle viendra en déduction du total à répartir.</p>
@@ -192,7 +192,7 @@
             <option value="50-50">50 / 50</option>
           </select>
           <button class="btn" type="submit" id="cf-submit">Ajouter</button>
-          <button class="btn" type="button" id="cf-annuler" style="display:none;background:var(--ink-soft);" onclick="annulerEditionChargeFixe()">Annuler</button>
+          <button class="btn btn-discret" type="button" id="cf-annuler" style="display:none;" onclick="annulerEditionChargeFixe()">Annuler</button>
         </form>
       </div>
       <div class="grille-cartes" id="zone-charges-fixes" style="margin-top:12px;"></div>
@@ -200,7 +200,7 @@
 
     <h2 class="section-titre" style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
       <span>Charges enfants (cantine, garderie...)</span>
-      <button class="btn" style="background:var(--paper);color:var(--ink);box-shadow:var(--shadow-1);font-size:0.8rem;padding:6px 12px;" onclick="basculerSection('charges-enfants')" id="btn-section-charges-enfants">Afficher</button>
+      <button class="btn btn-clair" style="font-size:0.8rem;padding:6px 12px;" onclick="basculerSection('charges-enfants')" id="btn-section-charges-enfants">Afficher</button>
     </h2>
     <div id="section-charges-enfants" style="display:none;">
       <div class="grille-cartes" id="zone-charges-enfants-resume"></div>
@@ -210,7 +210,7 @@
 
     <h2 class="section-titre" style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
       <span>Salaires & répartition</span>
-      <button class="btn" style="background:var(--paper);color:var(--ink);box-shadow:var(--shadow-1);font-size:0.8rem;padding:6px 12px;" onclick="basculerSection('salaires')" id="btn-section-salaires">Afficher</button>
+      <button class="btn btn-clair" style="font-size:0.8rem;padding:6px 12px;" onclick="basculerSection('salaires')" id="btn-section-salaires">Afficher</button>
     </h2>
     <div id="section-salaires" style="display:none;">
       <p style="color:var(--ink-soft);font-size:0.9rem;margin-top:-6px;">Sert de base au calcul de la répartition "au prorata" sur les autres postes. Enregistré une fois, valable pour tous les mois jusqu'à modification.</p>
@@ -219,7 +219,7 @@
 
     <h2 class="section-titre" style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
       <span>Carburant</span>
-      <button class="btn" style="background:var(--paper);color:var(--ink);box-shadow:var(--shadow-1);font-size:0.8rem;padding:6px 12px;" onclick="basculerSection('carburant')" id="btn-section-carburant">Afficher</button>
+      <button class="btn btn-clair" style="font-size:0.8rem;padding:6px 12px;" onclick="basculerSection('carburant')" id="btn-section-carburant">Afficher</button>
     </h2>
     <div id="section-carburant" style="display:none;">
       <p style="color:var(--ink-soft);font-size:0.9rem;margin-top:-6px;">Coût = distance aller × 2 × jours de travail × consommation ÷ 100 × prix du litre.</p>
@@ -228,7 +228,7 @@
 
     <h2 class="section-titre" style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
       <span>Dépenses variables du mois — historique</span>
-      <button class="btn" style="background:var(--paper);color:var(--ink);box-shadow:var(--shadow-1);font-size:0.8rem;padding:6px 12px;" onclick="basculerSection('depenses-variables')" id="btn-section-depenses-variables">Afficher</button>
+      <button class="btn btn-clair" style="font-size:0.8rem;padding:6px 12px;" onclick="basculerSection('depenses-variables')" id="btn-section-depenses-variables">Afficher</button>
     </h2>
     <div id="section-depenses-variables" style="display:none;">
       <p style="color:var(--ink-soft);font-size:0.9rem;margin-top:-6px;">À titre informatif. Ces dépenses viennent en crédit/débit sur le montant à verser du <strong>mois suivant</strong>.</p>
@@ -362,14 +362,6 @@ function tauxRepartition(repartition, membreId) {
   return tauxRepartitionAvec(repartition, membreId, _pourcentages);
 }
 
-function calculerPourcentages() {
-  const total = _adultes.reduce((s, m) => s + (_salaires[m.id] || 0), 0);
-  _pourcentages = {};
-  _adultes.forEach(m => {
-    _pourcentages[m.id] = total > 0 ? (_salaires[m.id] || 0) / total : 1 / _adultes.length;
-  });
-}
-
 // ---------- Salaires (figés par mois) ----------
 async function resoudreSalairesEtPourcentages(mois) {
   const { data: exact } = await sb.from('budget_profils').select('*').eq('mois', mois);
@@ -498,8 +490,8 @@ async function chargerChargesFixes() {
       <span class="badge-membre" style="background:var(--ink-soft);margin-left:6px;">${labelRepartition(c.repartition)}</span>
       ${info.suggestion ? '<p style="margin-top:6px;color:var(--ink-soft);font-size:0.78rem;font-style:italic;">Non figé pour ce mois — valeur reprise du dernier mois connu.</p>' : ''}
       <div style="margin-top:10px;display:flex;gap:6px;">
-        <button class="btn" style="background:var(--paper);color:var(--ink);box-shadow:var(--shadow-1);" onclick="modifierChargeFixe('${c.id}')">✏️ Modifier ce mois</button>
-        <button class="btn" style="background:var(--ink-soft)" onclick="supprimerChargeFixe('${c.id}')">Supprimer</button>
+        <button class="btn btn-clair" onclick="modifierChargeFixe('${c.id}')">✏️ Modifier ce mois</button>
+        <button class="btn btn-discret" onclick="supprimerChargeFixe('${c.id}')">Supprimer</button>
       </div>
     </div>
   `;
@@ -620,8 +612,8 @@ async function chargerChargesEnfants() {
         <span style="font-size:1.2rem;font-weight:800;color:${c._cout < 0 ? 'var(--louis)' : 'var(--ink)'}">${c._cout.toFixed(2)} €</span>
         <span class="badge-membre" style="background:var(--ink-soft);margin-left:6px;">${labelRepartition(c.repartition)}</span>
         <div style="margin-top:10px;display:flex;gap:6px;">
-          <button class="btn" style="background:var(--paper);color:var(--ink);box-shadow:var(--shadow-1);" onclick="modifierChargeEnfant('${c.id}')">✏️ Modifier</button>
-          <button class="btn" style="background:var(--ink-soft)" onclick="supprimerChargeEnfant('${c.id}')">Supprimer</button>
+          <button class="btn btn-clair" onclick="modifierChargeEnfant('${c.id}')">✏️ Modifier</button>
+          <button class="btn btn-discret" onclick="supprimerChargeEnfant('${c.id}')">Supprimer</button>
         </div>
       </div>
     `;
@@ -694,7 +686,7 @@ async function chargerDepenses() {
       <span style="color:var(--ink-soft);font-size:0.85rem;">${d.categorie} · ${new Date(d.date).toLocaleDateString('fr-FR')} · ${labelRepartition(d.repartition)}</span>
       <div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap;">${badgeMembre(membresParId[d.membre_id])} ${d.enfant_id && enfantsParId[d.enfant_id] ? badgeMembre(enfantsParId[d.enfant_id]) : ''}</div>
       <div style="margin-top:8px;">
-        <button class="btn" style="background:var(--ink-soft)" onclick="supprimerDepense('${d.id}')">Supprimer</button>
+        <button class="btn btn-discret" onclick="supprimerDepense('${d.id}')">Supprimer</button>
       </div>
     </div>
   `).join('') || '<div class="vide">Aucune dépense saisie ce mois-ci.</div>';

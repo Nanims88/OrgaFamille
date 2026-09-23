@@ -13,9 +13,6 @@ function dateFR(iso) {
   return C.parseISODate(iso).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 function auj() { return C.toISODate(new Date()); }
-function moisFR(n) {
-  return new Date(2000, n - 1, 1).toLocaleDateString('fr-FR', { month: 'long' });
-}
 
 async function sha256(txt) {
   const buffer = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(txt));

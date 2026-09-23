@@ -44,7 +44,7 @@
 
     <div class="carte" style="display:flex;gap:8px;flex-wrap:wrap;">
       <button class="btn" id="filtre-idee" onclick="changerFiltre('idee')">💡 À faire</button>
-      <button class="btn" id="filtre-faite" onclick="changerFiltre('faite')" style="background:var(--ink-soft)">✅ Déjà faites</button>
+      <button class="btn btn-discret" id="filtre-faite" onclick="changerFiltre('faite')">✅ Déjà faites</button>
     </div>
 
     <div class="grille-cartes" id="liste-activites" style="margin-top:16px;"></div>
@@ -65,7 +65,7 @@
         <input type="text" id="a-lien" placeholder="Lien (optionnel)">
         <label style="font-size:0.85rem;color:var(--ink-soft);">Date envisagée : <input type="date" id="a-date"></label>
         <button class="btn" type="submit" id="a-submit">Ajouter</button>
-        <button class="btn" type="button" id="a-annuler" style="display:none;background:var(--ink-soft);" onclick="annulerEditionActivite()">Annuler</button>
+        <button class="btn btn-discret" type="button" id="a-annuler" style="display:none;" onclick="annulerEditionActivite()">Annuler</button>
       </form>
     </div>
 
@@ -105,9 +105,9 @@ async function chargerActivites() {
       <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;">
         ${filtreActuel === 'idee'
           ? `<button class="btn" onclick="marquerFaite('${a.id}')">✅ On l'a fait</button>`
-          : `<button class="btn" style="background:var(--ink-soft)" onclick="remettreIdee('${a.id}')">↩️ Remettre en idée</button>`}
-        <button class="btn" style="background:var(--paper);color:var(--ink);box-shadow:var(--shadow-1);" onclick="modifierActivite('${a.id}')">✏️ Modifier</button>
-        <button class="btn" style="background:var(--ink-soft)" onclick="supprimerActivite('${a.id}')">Supprimer</button>
+          : `<button class="btn btn-discret" onclick="remettreIdee('${a.id}')">↩️ Remettre en idée</button>`}
+        <button class="btn btn-clair" onclick="modifierActivite('${a.id}')">✏️ Modifier</button>
+        <button class="btn btn-discret" onclick="supprimerActivite('${a.id}')">Supprimer</button>
       </div>
     </div>
   `).join('') || `<div class="vide">${filtreActuel === 'idee' ? 'Aucune idée pour l\'instant, ajoute-en une !' : 'Rien de fait encore.'}</div>`;

@@ -98,44 +98,49 @@ async function chargerInstances() {
           <div class="item-ligne ${it.coche ? 'fait' : ''}">
             <input type="checkbox" ${it.coche ? 'checked' : ''} onchange="toggleItemInstance('${it.id}', ${it.coche})">
             <span style="flex:1;">${it.libelle}</span>
-            <button class="btn" style="background:transparent;color:var(--ink-soft);box-shadow:none;padding:2px 8px;" onclick="modifierItemInstance('${it.id}')">✏️</button>
-            <button class="btn" style="background:transparent;color:var(--ink-soft);box-shadow:none;padding:2px 8px;" onclick="supprimerItemInstance('${it.id}')">✕</button>
+            <button class="btn btn-icone" onclick="modifierItemInstance('${it.id}')">✏️</button>
+            <button class="btn btn-icone" onclick="supprimerItemInstance('${it.id}')">✕</button>
           </div>
         `).join('')}
         <form class="mini" onsubmit="return ajouterItemInstance(event, '${inst.id}')">
           <input type="text" placeholder="Ajouter un point" style="flex:1;">
           <button class="btn" type="submit">+</button>
         </form>
-        <button class="btn" style="background:var(--ink-soft);margin-top:8px;" onclick="supprimerInstance('${inst.id}')">Supprimer la checklist</button>
+        <button class="btn btn-discret" style="margin-top:8px;" onclick="supprimerInstance('${inst.id}')">Supprimer la checklist</button>
       </div>
     `;
   }).join('') || '<div class="vide">Aucune checklist en cours.</div>';
+}
+
+// ---------- Helpers generiques (instances et modeles partagent la meme forme d'items) ----------
+async function modifierItemGenerique(table, cache, id, recharger) {
+  const it = cache.find(x => x.id === id);
+  if (!it) return;
+  const nouveau = prompt('Modifier ce point :', it.libelle);
+  if (nouveau === null || !nouveau.trim()) return;
+  await sb.from(table).update({ libelle: nouveau.trim() }).eq('id', id);
+  recharger();
+}
+async function supprimerItemGenerique(table, id, recharger) {
+  await sb.from(table).delete().eq('id', id);
+  recharger();
+}
+async function ajouterItemGenerique(e, table, clefParent, parentId, recharger) {
+  e.preventDefault();
+  const input = e.target.querySelector('input');
+  if (!input.value) return false;
+  await sb.from(table).insert({ [clefParent]: parentId, libelle: input.value, ordre: 99 });
+  recharger();
+  return false;
 }
 
 async function toggleItemInstance(id, coche) {
   await sb.from('checklists_instance_items').update({ coche: !coche }).eq('id', id);
   chargerInstances();
 }
-async function modifierItemInstance(id) {
-  const it = _itemsInstanceCache.find(x => x.id === id);
-  if (!it) return;
-  const nouveau = prompt('Modifier ce point :', it.libelle);
-  if (nouveau === null || !nouveau.trim()) return;
-  await sb.from('checklists_instance_items').update({ libelle: nouveau.trim() }).eq('id', id);
-  chargerInstances();
-}
-async function supprimerItemInstance(id) {
-  await sb.from('checklists_instance_items').delete().eq('id', id);
-  chargerInstances();
-}
-async function ajouterItemInstance(e, instanceId) {
-  e.preventDefault();
-  const input = e.target.querySelector('input');
-  if (!input.value) return false;
-  await sb.from('checklists_instance_items').insert({ instance_id: instanceId, libelle: input.value, ordre: 99 });
-  chargerInstances();
-  return false;
-}
+function modifierItemInstance(id) { return modifierItemGenerique('checklists_instance_items', _itemsInstanceCache, id, chargerInstances); }
+function supprimerItemInstance(id) { return supprimerItemGenerique('checklists_instance_items', id, chargerInstances); }
+function ajouterItemInstance(e, instanceId) { return ajouterItemGenerique(e, 'checklists_instance_items', 'instance_id', instanceId, chargerInstances); }
 async function supprimerInstance(id) {
   if (!confirm('Supprimer cette checklist ?')) return;
   await sb.from('checklists_instances').delete().eq('id', id);
@@ -160,8 +165,8 @@ async function chargerModeles() {
           ${itemsM.map(it => `<li style="display:flex;align-items:center;gap:6px;justify-content:space-between;">
             <span>${it.libelle}</span>
             <span style="display:flex;gap:2px;">
-              <button class="btn" style="background:transparent;color:var(--ink-soft);box-shadow:none;padding:2px 8px;" onclick="modifierItemModele('${it.id}')">✏️</button>
-              <button class="btn" style="background:transparent;color:var(--ink-soft);box-shadow:none;padding:2px 8px;" onclick="supprimerItemModele('${it.id}')">✕</button>
+              <button class="btn btn-icone" onclick="modifierItemModele('${it.id}')">✏️</button>
+              <button class="btn btn-icone" onclick="supprimerItemModele('${it.id}')">✕</button>
             </span>
           </li>`).join('')}
         </ul>
@@ -174,26 +179,9 @@ async function chargerModeles() {
   }).join('') || '<div class="vide">Aucun modèle.</div>';
 }
 
-async function ajouterItemModele(e, modeleId) {
-  e.preventDefault();
-  const input = e.target.querySelector('input');
-  if (!input.value) return false;
-  await sb.from('checklists_modele_items').insert({ modele_id: modeleId, libelle: input.value, ordre: 99 });
-  chargerModeles();
-  return false;
-}
-async function modifierItemModele(id) {
-  const it = _itemsModeleCache.find(x => x.id === id);
-  if (!it) return;
-  const nouveau = prompt('Modifier ce point :', it.libelle);
-  if (nouveau === null || !nouveau.trim()) return;
-  await sb.from('checklists_modele_items').update({ libelle: nouveau.trim() }).eq('id', id);
-  chargerModeles();
-}
-async function supprimerItemModele(id) {
-  await sb.from('checklists_modele_items').delete().eq('id', id);
-  chargerModeles();
-}
+function ajouterItemModele(e, modeleId) { return ajouterItemGenerique(e, 'checklists_modele_items', 'modele_id', modeleId, chargerModeles); }
+function modifierItemModele(id) { return modifierItemGenerique('checklists_modele_items', _itemsModeleCache, id, chargerModeles); }
+function supprimerItemModele(id) { return supprimerItemGenerique('checklists_modele_items', id, chargerModeles); }
 
 document.getElementById('form-modele').addEventListener('submit', async (e) => {
   e.preventDefault();
