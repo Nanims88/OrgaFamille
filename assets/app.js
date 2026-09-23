@@ -4,12 +4,12 @@ const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const JOURS = ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"];
 
 // ---------- Portail mot de passe ----------
+// Un seul champ mot de passe cote UI (comme avant), mais authentifie via un vrai compte
+// Supabase Auth derriere : c'est ce qui permet aux regles RLS de bloquer l'acces anonyme.
 async function verifierMotDePasse() {
   const saisie = document.getElementById('gate-input').value;
-  const buffer = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(saisie));
-  const hash = [...new Uint8Array(buffer)].map(b => b.toString(16).padStart(2, '0')).join('');
-  if (hash === FAMILLE_PASSWORD_HASH) {
-    sessionStorage.setItem('famille_ok', '1');
+  const { error } = await sb.auth.signInWithPassword({ email: FAMILLE_AUTH_EMAIL, password: saisie });
+  if (!error) {
     document.getElementById('gate').style.display = 'none';
     document.getElementById('app').classList.add('pret');
     initPage();
@@ -18,8 +18,9 @@ async function verifierMotDePasse() {
   }
 }
 
-function demarrerPortail() {
-  if (sessionStorage.getItem('famille_ok') === '1') {
+async function demarrerPortail() {
+  const { data: { session } } = await sb.auth.getSession();
+  if (session) {
     document.getElementById('gate').style.display = 'none';
     document.getElementById('app').classList.add('pret');
     initPage();
