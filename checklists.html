@@ -83,7 +83,11 @@ async function chargerInstances() {
   _itemsInstanceCache = items || [];
 
   document.getElementById('liste-instances').innerHTML = (instances || []).map(inst => {
-    const itemsInst = _itemsInstanceCache.filter(it => it.instance_id === inst.id);
+    // Les points coches descendent en fin de liste, sans toucher a l'ordre d'origine
+    // (qui ressert si on decoche, ou pour une prochaine instance basee sur le modele).
+    const itemsInst = _itemsInstanceCache
+      .filter(it => it.instance_id === inst.id)
+      .sort((a, b) => (a.coche === b.coche) ? 0 : (a.coche ? 1 : -1));
     const nbFait = itemsInst.filter(it => it.coche).length;
     return `
       <div class="carte">
