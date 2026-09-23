@@ -173,10 +173,7 @@
     </div>
 
     <div class="carte" id="zone-resume-fixes" style="margin-top:16px;"></div>
-    <div class="grille-cartes" style="margin-top:16px;">
-      <div id="zone-resume-personnes" style="display:contents;"></div>
-      <div id="zone-charges-enfants-resume" style="display:contents;"></div>
-    </div>
+    <div class="grille-cartes" id="zone-resume-personnes" style="margin-top:16px;"></div>
 
     <h2 class="section-titre" style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
       <span>Charges fixes</span>
@@ -201,9 +198,15 @@
       <div class="grille-cartes" id="zone-charges-fixes" style="margin-top:12px;"></div>
     </div>
 
-    <h2 class="section-titre">Charges enfants (cantine, garderie...) — détail</h2>
-    <p style="color:var(--ink-soft);font-size:0.9rem;margin-top:-6px;">Jours ouvrés du mois calculés automatiquement (lundi-vendredi), ajustables si besoin (absences, jours en plus...).</p>
-    <div class="grille-cartes" id="zone-charges-enfants"></div>
+    <h2 class="section-titre" style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
+      <span>Charges enfants (cantine, garderie...)</span>
+      <button class="btn" style="background:var(--paper);color:var(--ink);box-shadow:var(--shadow-1);font-size:0.8rem;padding:6px 12px;" onclick="basculerSection('charges-enfants')" id="btn-section-charges-enfants">Afficher</button>
+    </h2>
+    <div id="section-charges-enfants" style="display:none;">
+      <div class="grille-cartes" id="zone-charges-enfants-resume"></div>
+      <p style="color:var(--ink-soft);font-size:0.9rem;margin:16px 0 -6px;">Jours ouvrés du mois calculés automatiquement (lundi-vendredi), ajustables si besoin (absences, jours en plus...).</p>
+      <div class="grille-cartes" id="zone-charges-enfants" style="margin-top:12px;"></div>
+    </div>
 
     <h2 class="section-titre" style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
       <span>Salaires & répartition</span>
