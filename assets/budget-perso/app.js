@@ -479,7 +479,7 @@ async function renderSemaine(zone) {
     const { disponible, reste } = C.soldeSemaine({ budgetSemaine: budgetEffectif, reportPrecedent, depense });
     // Pas encore vire : le montant suggere tient compte des saisies deja faites cette semaine (se reajuste tout seul).
     const virementSuggere = virement ? montantVirement : Math.max(0, reste);
-    lignes.push({ dateLundi, dateFinSemaine, disponible, reste, depense, montantVirement, virementSuggere, fait: !!virement });
+    lignes.push({ dateLundi, dateFinSemaine, disponible, reste, depense, montantVirement, virementSuggere, fait: !!virement, idVirement: virement ? virement.id : null });
     reportPrecedent = reste;
   }
 
@@ -497,7 +497,10 @@ async function renderSemaine(zone) {
           <span>${eur(l.reste)} restant</span>
         </div>
         <div class="jauge-fond"><div class="jauge-barre ${l.reste < 0 ? 'danger' : ''}" style="width:${l.disponible > 0 ? Math.min(100, Math.max(0, l.reste / l.disponible * 100)) : 0}%"></div></div>
-        <p style="font-size:.82rem;color:var(--ink-soft);margin:8px 0 0">Disponible : ${eur(l.disponible)} (virement ${l.fait ? eur(l.montantVirement) : 'a faire, ' + eur(l.virementSuggere)}) — Depense : ${eur(l.depense)}</p>
+        <p style="font-size:.82rem;color:var(--ink-soft);margin:8px 0 0">
+          Disponible : ${eur(l.disponible)} (virement ${l.fait ? eur(l.montantVirement) : 'a faire, ' + eur(l.virementSuggere)}) — Depense : ${eur(l.depense)}
+          ${l.fait ? `<a href="#" class="virement-modifier" data-id="${l.idVirement}" data-montant="${l.montantVirement}" style="margin-left:8px">✏️ Modifier</a> <a href="#" class="virement-annuler" data-id="${l.idVirement}" style="margin-left:4px">🗑️ Annuler</a>` : ''}
+        </p>
         ${!l.fait ? `<button class="btn" data-lundi="${l.dateLundi}" data-montant="${l.virementSuggere}" style="margin-top:8px">Faire le virement (${eur(l.virementSuggere)})</button>` : ''}
       </div>
     `).join('')}
@@ -510,6 +513,20 @@ async function renderSemaine(zone) {
       renderSemaine(zone);
     });
   });
+  zone.querySelectorAll('.virement-modifier').forEach(a => a.addEventListener('click', async (e) => {
+    e.preventDefault();
+    const montant = parseFloat(prompt('Nouveau montant du virement', a.dataset.montant));
+    if (!montant && montant !== 0) return;
+    const virement = virements.find(v => v.id === a.dataset.id);
+    await DB.put('virementsHebdo', { ...virement, montantVirement: montant });
+    renderSemaine(zone);
+  }));
+  zone.querySelectorAll('.virement-annuler').forEach(a => a.addEventListener('click', async (e) => {
+    e.preventDefault();
+    if (!confirm('Annuler ce virement ? La semaine redeviendra "a faire".')) return;
+    await DB.remove('virementsHebdo', a.dataset.id);
+    renderSemaine(zone);
+  }));
 }
 
 async function renderCycle(zone) {
