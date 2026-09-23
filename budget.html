@@ -178,39 +178,59 @@
       <div id="zone-charges-enfants-resume" style="display:contents;"></div>
     </div>
 
-    <h2 class="section-titre">Charges fixes</h2>
-    <p style="color:var(--ink-soft);font-size:0.9rem;margin-top:-6px;">Utilise un montant négatif pour une entrée d'argent (CAF, aides...) — elle viendra en déduction du total à répartir.</p>
-    <div class="carte">
-      <strong id="cf-titre-form">Ajouter une charge fixe</strong>
-      <form class="mini" id="form-charge-fixe">
-        <input type="hidden" id="cf-id">
-        <input type="text" id="cf-libelle" placeholder="Ex: Loyer, Assurance..." required>
-        <input type="number" step="0.01" id="cf-montant" placeholder="Montant €" required>
-        <select id="cf-repartition">
-          <option value="prorata">Au prorata du salaire</option>
-          <option value="50-50">50 / 50</option>
-        </select>
-        <button class="btn" type="submit" id="cf-submit">Ajouter</button>
-        <button class="btn" type="button" id="cf-annuler" style="display:none;background:var(--ink-soft);" onclick="annulerEditionChargeFixe()">Annuler</button>
-      </form>
+    <h2 class="section-titre" style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
+      <span>Charges fixes</span>
+      <button class="btn" style="background:var(--paper);color:var(--ink);box-shadow:var(--shadow-1);font-size:0.8rem;padding:6px 12px;" onclick="basculerSection('charges-fixes')" id="btn-section-charges-fixes">Afficher</button>
+    </h2>
+    <div id="section-charges-fixes" style="display:none;">
+      <p style="color:var(--ink-soft);font-size:0.9rem;margin-top:-6px;">Utilise un montant négatif pour une entrée d'argent (CAF, aides...) — elle viendra en déduction du total à répartir.</p>
+      <div class="carte">
+        <strong id="cf-titre-form">Ajouter une charge fixe</strong>
+        <form class="mini" id="form-charge-fixe">
+          <input type="hidden" id="cf-id">
+          <input type="text" id="cf-libelle" placeholder="Ex: Loyer, Assurance..." required>
+          <input type="number" step="0.01" id="cf-montant" placeholder="Montant €" required>
+          <select id="cf-repartition">
+            <option value="prorata">Au prorata du salaire</option>
+            <option value="50-50">50 / 50</option>
+          </select>
+          <button class="btn" type="submit" id="cf-submit">Ajouter</button>
+          <button class="btn" type="button" id="cf-annuler" style="display:none;background:var(--ink-soft);" onclick="annulerEditionChargeFixe()">Annuler</button>
+        </form>
+      </div>
+      <div class="grille-cartes" id="zone-charges-fixes" style="margin-top:12px;"></div>
     </div>
-    <div class="grille-cartes" id="zone-charges-fixes" style="margin-top:12px;"></div>
 
     <h2 class="section-titre">Charges enfants (cantine, garderie...) — détail</h2>
     <p style="color:var(--ink-soft);font-size:0.9rem;margin-top:-6px;">Jours ouvrés du mois calculés automatiquement (lundi-vendredi), ajustables si besoin (absences, jours en plus...).</p>
     <div class="grille-cartes" id="zone-charges-enfants"></div>
 
-    <h2 class="section-titre">Salaires & répartition</h2>
-    <p style="color:var(--ink-soft);font-size:0.9rem;margin-top:-6px;">Sert de base au calcul de la répartition "au prorata" sur les autres postes. Enregistré une fois, valable pour tous les mois jusqu'à modification.</p>
-    <div class="grille-cartes" id="zone-salaires"></div>
+    <h2 class="section-titre" style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
+      <span>Salaires & répartition</span>
+      <button class="btn" style="background:var(--paper);color:var(--ink);box-shadow:var(--shadow-1);font-size:0.8rem;padding:6px 12px;" onclick="basculerSection('salaires')" id="btn-section-salaires">Afficher</button>
+    </h2>
+    <div id="section-salaires" style="display:none;">
+      <p style="color:var(--ink-soft);font-size:0.9rem;margin-top:-6px;">Sert de base au calcul de la répartition "au prorata" sur les autres postes. Enregistré une fois, valable pour tous les mois jusqu'à modification.</p>
+      <div class="grille-cartes" id="zone-salaires"></div>
+    </div>
 
-    <h2 class="section-titre">Carburant</h2>
-    <p style="color:var(--ink-soft);font-size:0.9rem;margin-top:-6px;">Coût = distance aller × 2 × jours de travail × consommation ÷ 100 × prix du litre.</p>
-    <div class="grille-cartes" id="zone-transport"></div>
+    <h2 class="section-titre" style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
+      <span>Carburant</span>
+      <button class="btn" style="background:var(--paper);color:var(--ink);box-shadow:var(--shadow-1);font-size:0.8rem;padding:6px 12px;" onclick="basculerSection('carburant')" id="btn-section-carburant">Afficher</button>
+    </h2>
+    <div id="section-carburant" style="display:none;">
+      <p style="color:var(--ink-soft);font-size:0.9rem;margin-top:-6px;">Coût = distance aller × 2 × jours de travail × consommation ÷ 100 × prix du litre.</p>
+      <div class="grille-cartes" id="zone-transport"></div>
+    </div>
 
-    <h2 class="section-titre">Dépenses variables du mois — historique</h2>
-    <p style="color:var(--ink-soft);font-size:0.9rem;margin-top:-6px;">À titre informatif. Ces dépenses viennent en crédit/débit sur le montant à verser du <strong>mois suivant</strong>.</p>
-    <div class="grille-cartes" id="zone-depenses"></div>
+    <h2 class="section-titre" style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
+      <span>Dépenses variables du mois — historique</span>
+      <button class="btn" style="background:var(--paper);color:var(--ink);box-shadow:var(--shadow-1);font-size:0.8rem;padding:6px 12px;" onclick="basculerSection('depenses-variables')" id="btn-section-depenses-variables">Afficher</button>
+    </h2>
+    <div id="section-depenses-variables" style="display:none;">
+      <p style="color:var(--ink-soft);font-size:0.9rem;margin-top:-6px;">À titre informatif. Ces dépenses viennent en crédit/débit sur le montant à verser du <strong>mois suivant</strong>.</p>
+      <div class="grille-cartes" id="zone-depenses"></div>
+    </div>
 
     <h2 class="section-titre">Vue annuelle</h2>
     <p style="color:var(--ink-soft);font-size:0.9rem;margin-top:-6px;">Évolution des dépenses par poste, mois par mois.</p>
@@ -242,6 +262,18 @@
 <script>
 document.getElementById('date-jour').textContent = formatDateLongue(dateAujourdhui());
 
+// ---------- Volets repliables (charges fixes, salaires, carburant, depenses variables, detail du resume) ----------
+const _sectionsOuvertes = {};
+function basculerSection(nom) {
+  _sectionsOuvertes[nom] = !_sectionsOuvertes[nom];
+  document.getElementById('section-' + nom).style.display = _sectionsOuvertes[nom] ? 'block' : 'none';
+  const declencheur = document.getElementById('btn-section-' + nom);
+  if (declencheur) {
+    declencheur.textContent = _sectionsOuvertes[nom]
+      ? (declencheur.dataset.ouvert || 'Masquer')
+      : (declencheur.dataset.ferme || 'Afficher');
+  }
+}
 
 let _adultes = [];       // les deux membres "adulte"
 let _salaires = {};      // membre_id -> salaire
@@ -823,11 +855,16 @@ async function chargerResume() {
   const resteAPrelever = _chargesFixesCache.reduce((s, c) => s + (statutParCharge[c.id] ? 0 : _montantsChargesFixes[c.id].montant), 0);
 
   document.getElementById('zone-resume-total').innerHTML = `
-    <p><strong>Solde du compte commun en début de mois :</strong> ${_soldeDebutMoisCourant.toFixed(2)} €</p>
-    <p><strong>Charges du mois (fixes + carburant + enfants) :</strong> ${totalMois.toFixed(2)} €</p>
-    <p style="margin-top:2px;color:var(--ink-soft);font-size:0.85rem;">Dépenses variables saisies en ${new Date(moisPrec + '-01').toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })} (créditées ce mois-ci) : ${totalDepensesPrec.toFixed(2)} €</p>
-    <p style="margin-top:4px;"><strong>Reste à prélever sur le compte</strong> (charges fixes non encore pointées) : <span style="font-weight:800;">${resteAPrelever.toFixed(2)} €</span></p>
-    <p style="margin-top:8px;"><strong>Solde prévisionnel en fin de mois</strong> (avec les ${totalAVerser.toFixed(2)} € à verser par chacun) : <span style="font-weight:800;color:${soldeFinMois >= 0 ? 'var(--ink)' : 'var(--louis)'}">${soldeFinMois.toFixed(2)} €</span></p>
+    <p><strong>Reste à prélever sur le compte</strong> (charges fixes non encore pointées) : <span style="font-weight:800;">${resteAPrelever.toFixed(2)} €</span></p>
+    <p style="margin-top:6px;"><strong>Solde prévisionnel en fin de mois</strong> (avec les ${totalAVerser.toFixed(2)} € à verser par chacun) : <span style="font-weight:800;color:${soldeFinMois >= 0 ? 'var(--ink)' : 'var(--louis)'}">${soldeFinMois.toFixed(2)} €</span></p>
+    <p style="margin-top:8px;">
+      <a href="#" onclick="basculerSection('detail-resume');return false;" id="btn-section-detail-resume" data-ouvert="Masquer le détail du calcul" data-ferme="Voir le détail du calcul" style="font-size:0.82rem;color:var(--ink-soft);">Voir le détail du calcul</a>
+    </p>
+    <div id="section-detail-resume" style="display:none;margin-top:4px;">
+      <p><strong>Solde du compte commun en début de mois :</strong> ${_soldeDebutMoisCourant.toFixed(2)} €</p>
+      <p><strong>Charges du mois (fixes + carburant + enfants) :</strong> ${totalMois.toFixed(2)} €</p>
+      <p style="margin-top:2px;color:var(--ink-soft);font-size:0.85rem;">Dépenses variables saisies en ${new Date(moisPrec + '-01').toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })} (créditées ce mois-ci) : ${totalDepensesPrec.toFixed(2)} €</p>
+    </div>
   `;
 
   document.getElementById('zone-resume-fixes').innerHTML = `
