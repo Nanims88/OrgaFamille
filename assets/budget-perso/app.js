@@ -183,7 +183,9 @@ async function renderAccueil(zone) {
   let soldePrincipal = config.dernierSolde.montant;
   let soldeDetailHTML = '<div style="font-size:.75rem;color:var(--ink-soft)">aucun solde saisi</div>';
   if (config.dernierSolde.date) {
-    const mouvementsDepuis = (await DB.getAll('transactions')).filter(t => t.compte === 'principal' && t.date > config.dernierSolde.date);
+    // Seules les saisies jusqu'a aujourd'hui comptent dans le solde actuel : une saisie a une
+    // date future est une anticipation, pas encore un mouvement reel sur le compte.
+    const mouvementsDepuis = (await DB.getAll('transactions')).filter(t => t.compte === 'principal' && t.date > config.dernierSolde.date && t.date <= auj());
     soldePrincipal = C.soldeTheorique({ soldeInitial: config.dernierSolde.montant, transactions: mouvementsDepuis });
     soldeDetailHTML = mouvementsDepuis.length
       ? `<div style="font-size:.75rem;color:var(--ink-soft)">solde saisi ${eur(config.dernierSolde.montant)} le ${dateFR(config.dernierSolde.date)}</div>`
