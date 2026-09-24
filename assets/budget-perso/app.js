@@ -300,14 +300,12 @@ const CATEGORIES_REVENU = [
 let categorieChoisie = null;
 let typeSaisie = 'depense';
 let idEnEdition = null;
-let dateEnEdition = null;
 
 async function renderSaisie(zone) {
   const config = await DB.getConfig();
   categorieChoisie = null;
   typeSaisie = 'depense';
   idEnEdition = null;
-  dateEnEdition = null;
   zone.innerHTML = `
     <div class="carte">
       <h2 class="section-titre" style="margin-top:0">Saisie rapide</h2>
@@ -324,6 +322,10 @@ async function renderSaisie(zone) {
       <div class="champ-groupe">
         <label>Montant (EUR)</label>
         <input id="saisie-montant" type="number" step="0.01" inputmode="decimal" placeholder="0.00" style="font-size:1.4rem;padding:12px;border-radius:10px;border:2px solid var(--border);">
+      </div>
+      <div class="champ-groupe">
+        <label>Date (aujourd'hui par defaut, une date future est acceptee)</label>
+        <input id="saisie-date" type="date" value="${auj()}">
       </div>
       <div class="champ-groupe">
         <label>Categorie</label>
@@ -376,7 +378,7 @@ async function renderSaisie(zone) {
 
   async function chargerPourEdition(t) {
     idEnEdition = t.id;
-    dateEnEdition = t.date;
+    document.getElementById('saisie-date').value = t.date;
     document.getElementById('saisie-montant').value = Math.abs(t.montant);
     typeSaisie = t.montant >= 0 ? 'revenu' : 'depense';
     zone.querySelectorAll('#saisie-type .chip').forEach(b => b.classList.toggle('actif', b.dataset.type === typeSaisie));
@@ -390,15 +392,16 @@ async function renderSaisie(zone) {
 
 function annulerEditionSaisie(zone) {
   idEnEdition = null;
-  dateEnEdition = null;
   document.getElementById('saisie-edition-info').style.display = 'none';
   document.getElementById('saisie-montant').value = '';
+  document.getElementById('saisie-date').value = auj();
   zone.querySelectorAll('#saisie-categories .chip').forEach(b => b.classList.remove('actif'));
   categorieChoisie = null;
 }
 
 async function enregistrerSaisie(zone, compte) {
   const montant = parseFloat(document.getElementById('saisie-montant').value);
+  const date = document.getElementById('saisie-date').value || auj();
   const message = document.getElementById('saisie-message');
   if (!montant || montant <= 0) { message.style.color = 'var(--danger)'; message.textContent = 'Indique un montant.'; return; }
   if (!categorieChoisie) { message.style.color = 'var(--danger)'; message.textContent = 'Choisis une categorie.'; return; }
@@ -406,16 +409,15 @@ async function enregistrerSaisie(zone, compte) {
   const enEdition = !!idEnEdition;
   await DB.put('transactions', {
     id: idEnEdition || DB.nouvelId(),
-    date: dateEnEdition || auj(),
-    categorie: categorieChoisie, compte, montant: montantSigne, libelle: 'Saisie rapide'
+    date, categorie: categorieChoisie, compte, montant: montantSigne, libelle: 'Saisie rapide'
   });
   document.getElementById('saisie-montant').value = '';
+  document.getElementById('saisie-date').value = auj();
   categorieChoisie = null;
   zone.querySelectorAll('#saisie-categories .chip').forEach(b => b.classList.remove('actif'));
   message.style.color = 'var(--ok)';
-  message.textContent = enEdition ? 'Modifie ✅' : 'Ajoute ✅';
+  message.textContent = enEdition ? 'Modifie ✅' : (date > auj() ? 'Ajoute ✅ (date future)' : 'Ajoute ✅');
   idEnEdition = null;
-  dateEnEdition = null;
   document.getElementById('saisie-edition-info').style.display = 'none';
   await rafraichirHistoriqueSaisie(zone);
 }
