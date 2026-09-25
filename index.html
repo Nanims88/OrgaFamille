@@ -392,7 +392,8 @@ async function chargerMois() {
 
     const chipsEvt = evtsJour.map(e => {
       const m = membresParId[e.membre_id];
-      return `<span class="mois-evt" style="background:${m ? m.couleur : 'var(--tous)'}" title="${e.titre}">${e.titre}</span>`;
+      const couleur = e.couleur || (m ? m.couleur : 'var(--tous)');
+      return `<span class="mois-evt" style="background:${couleur}" title="${e.titre}">${e.titre}</span>`;
     });
     const chipsAct = activitesJour.map(a => `<span class="mois-evt" style="background:var(--activite)" title="${a.titre}">🎒 ${a.titre}</span>`);
     const chipsTrav = travauxJour.map(t => `<span class="mois-evt" style="background:var(--travaux)" title="${t.libelle}">🧰 ${t.libelle}</span>`);
