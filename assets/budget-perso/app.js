@@ -337,7 +337,6 @@ async function renderSaisie(zone) {
         <label>Compte</label>
         <div class="chips" id="saisie-comptes">
           <button type="button" class="chip" data-compte="principal">Compte principal</button>
-          <button type="button" class="chip" data-compte="joint">Compte joint</button>
           <button type="button" class="chip" data-compte="enveloppe">Enveloppe (Boursorama)</button>
         </div>
       </div>
@@ -537,7 +536,8 @@ async function renderCycle(zone) {
     carburant: C.round2(C.carburantHebdo(config.enveloppe.carburant) * nbLundis),
     courses: config.enveloppe.coursesMensuel,
     tabac: config.enveloppe.tabacMensuel,
-    variable: config.enveloppe.variableMensuel
+    variable: config.enveloppe.variableMensuel,
+    autre: 0
   };
   const parCategorie = {};
   for (const t of transactions) {
