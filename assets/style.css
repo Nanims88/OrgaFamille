@@ -361,7 +361,7 @@ td { vertical-align: top; }
 /* ---------- Vue Mois ---------- */
 .mois-grid {
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
+  grid-template-columns: minmax(22px, auto) repeat(7, 1fr);
   gap: 6px;
 }
 .mois-entete-jour {
@@ -370,6 +370,15 @@ td { vertical-align: top; }
   font-size: 0.78rem;
   color: var(--ink-soft);
   padding-bottom: 4px;
+}
+.mois-entete-semaine { }
+.mois-numero-semaine {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--ink-soft);
 }
 .mois-cellule {
   background: var(--paper);
