@@ -167,9 +167,14 @@
           <option value="prorata">Au prorata du salaire</option>
           <option value="50-50">50 / 50</option>
         </select>
+        <select id="ce-impact">
+          <option value="ce-mois">Impacte ce mois</option>
+          <option value="mois-suivant">Impacte le mois suivant</option>
+        </select>
         <button class="btn" type="submit" id="ce-submit">Ajouter</button>
         <button class="btn btn-discret" type="button" id="ce-annuler" style="display:none;" onclick="annulerEditionChargeEnfant()">Annuler</button>
       </form>
+      <p style="color:var(--ink-soft);font-size:0.85rem;margin-top:8px;">"Impacte le mois suivant" : utile pour une charge connue trop tard (ex : prime crèche calculée en fin de mois). Le calcul reste identique (jours ouvrés × prix/jour) mais compte dans le total du mois d'après.</p>
     </div>
 
     <div class="carte" id="zone-resume-fixes" style="margin-top:16px;"></div>
@@ -611,6 +616,7 @@ async function chargerChargesEnfants() {
         <p style="margin:6px 0;font-size:0.85rem;color:var(--ink-soft);">Jours retenus : <strong>${c._joursRetenus}</strong></p>
         <span style="font-size:1.2rem;font-weight:800;color:${c._cout < 0 ? 'var(--louis)' : 'var(--ink)'}">${c._cout.toFixed(2)} €</span>
         <span class="badge-membre" style="background:var(--ink-soft);margin-left:6px;">${labelRepartition(c.repartition)}</span>
+        ${c.impact_mois_suivant ? '<span class="badge-membre" style="background:var(--ink);margin-left:6px;">→ Mois suivant</span>' : ''}
         <div style="margin-top:10px;display:flex;gap:6px;">
           <button class="btn btn-clair" onclick="modifierChargeEnfant('${c.id}')">✏️ Modifier</button>
           <button class="btn btn-discret" onclick="supprimerChargeEnfant('${c.id}')">Supprimer</button>
@@ -634,6 +640,7 @@ function modifierChargeEnfant(id) {
   document.getElementById('ce-enfant').value = c.enfant_id || '';
   document.getElementById('ce-prix').value = c.prix_jour;
   document.getElementById('ce-repartition').value = c.repartition;
+  document.getElementById('ce-impact').value = c.impact_mois_suivant ? 'mois-suivant' : 'ce-mois';
   document.getElementById('ce-titre-form').textContent = 'Modifier cette charge fixe enfant';
   document.getElementById('ce-submit').textContent = 'Enregistrer';
   document.getElementById('ce-annuler').style.display = 'inline-block';
@@ -641,6 +648,7 @@ function modifierChargeEnfant(id) {
 function annulerEditionChargeEnfant() {
   document.getElementById('form-charge-enfant').reset();
   document.getElementById('ce-id').value = '';
+  document.getElementById('ce-impact').value = 'ce-mois';
   document.getElementById('ce-titre-form').textContent = 'Ajouter une charge fixe enfant';
   document.getElementById('ce-submit').textContent = 'Ajouter';
   document.getElementById('ce-annuler').style.display = 'none';
@@ -658,7 +666,8 @@ document.getElementById('form-charge-enfant').addEventListener('submit', async (
     libelle: document.getElementById('ce-libelle').value,
     enfant_id: document.getElementById('ce-enfant').value || null,
     prix_jour: parseFloat(document.getElementById('ce-prix').value) || 0,
-    repartition: document.getElementById('ce-repartition').value
+    repartition: document.getElementById('ce-repartition').value,
+    impact_mois_suivant: document.getElementById('ce-impact').value === 'mois-suivant'
   };
   if (id) await sb.from('budget_charges_enfants').update(payload).eq('id', id);
   else await sb.from('budget_charges_enfants').insert(payload);
@@ -735,10 +744,12 @@ function premierJourDuMois(mois) {
 async function calculerFluxMois(mois) {
   const moisPrec = moisPrecedentStr(mois);
   const joursBase = joursOuvresDuMois(premierJourDuMois(mois));
+  const joursBasePrec = joursOuvresDuMois(premierJourDuMois(moisPrec));
 
-  const [transportRes, ajustEnfantsRes, montantsChargesFixes, { pourcentages }, depensesPrecRes, { pourcentages: pourcentagesPrec }] = await Promise.all([
+  const [transportRes, ajustEnfantsRes, ajustEnfantsPrecRes, montantsChargesFixes, { pourcentages }, depensesPrecRes, { pourcentages: pourcentagesPrec }] = await Promise.all([
     sb.from('budget_transport').select('*'),
     sb.from('budget_charges_enfants_ajustement').select('*').eq('mois', mois),
+    sb.from('budget_charges_enfants_ajustement').select('*').eq('mois', moisPrec),
     resoudreMontantsChargesFixes(mois),
     resoudreSalairesEtPourcentages(mois),
     // Dépenses variables DU MOIS PRÉCÉDENT — c'est ce qui vient créditer/débiter le versement de ce mois-ci
@@ -748,13 +759,18 @@ async function calculerFluxMois(mois) {
 
   const transportParId = Object.fromEntries((transportRes.data || []).map(t => [t.membre_id, t]));
   const ajustEnfantsParId = Object.fromEntries((ajustEnfantsRes.data || []).map(a => [a.charge_id, a.ajustement_jours]));
+  const ajustEnfantsPrecParId = Object.fromEntries((ajustEnfantsPrecRes.data || []).map(a => [a.charge_id, a.ajustement_jours]));
   const depensesPrec = depensesPrecRes.data || [];
 
   // ---- Pot du mois consulté : charges fixes + charges enfants + carburant ----
   const postes = [];
   _chargesFixesCache.forEach(c => postes.push({ montant: montantsChargesFixes[c.id].montant, repartition: c.repartition }));
   _chargesEnfantsCache.forEach(c => {
-    const joursRetenus = Math.max(0, joursBase + (ajustEnfantsParId[c.id] || 0));
+    // "Impacte le mois suivant" : decouverte trop tard pour peser sur son propre mois (ex: prime creche
+    // connue en fin de mois), on reprend alors les jours/ajustement du mois precedent pour peser ici.
+    const joursRetenus = c.impact_mois_suivant
+      ? Math.max(0, joursBasePrec + (ajustEnfantsPrecParId[c.id] || 0))
+      : Math.max(0, joursBase + (ajustEnfantsParId[c.id] || 0));
     postes.push({ montant: joursRetenus * c.prix_jour, repartition: c.repartition });
   });
   _adultes.forEach(m => {
@@ -907,9 +923,12 @@ const NOMS_MOIS_LONG = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', '
 
 async function calculerPostesMois(mois) {
   const joursBase = joursOuvresDuMois(premierJourDuMois(mois));
-  const [montantsChargesFixes, ajustEnfantsRes, transportRes, depVarRes] = await Promise.all([
+  const moisPrec = moisPrecedentStr(mois);
+  const joursBasePrec = joursOuvresDuMois(premierJourDuMois(moisPrec));
+  const [montantsChargesFixes, ajustEnfantsRes, ajustEnfantsPrecRes, transportRes, depVarRes] = await Promise.all([
     resoudreMontantsChargesFixes(mois),
     sb.from('budget_charges_enfants_ajustement').select('*').eq('mois', mois),
+    sb.from('budget_charges_enfants_ajustement').select('*').eq('mois', moisPrec),
     sb.from('budget_transport').select('*'),
     sb.from('budget_depenses_variables').select('montant').gte('date', mois + '-01').lt('date', moisSuivantStr(mois))
   ]);
@@ -917,8 +936,11 @@ async function calculerPostesMois(mois) {
   const chargesFixes = _chargesFixesCache.reduce((s, c) => s + montantsChargesFixes[c.id].montant, 0);
 
   const ajustParId = Object.fromEntries((ajustEnfantsRes.data || []).map(a => [a.charge_id, a.ajustement_jours]));
+  const ajustPrecParId = Object.fromEntries((ajustEnfantsPrecRes.data || []).map(a => [a.charge_id, a.ajustement_jours]));
   const chargesEnfants = _chargesEnfantsCache.reduce((s, c) => {
-    const joursRetenus = Math.max(0, joursBase + (ajustParId[c.id] || 0));
+    const joursRetenus = c.impact_mois_suivant
+      ? Math.max(0, joursBasePrec + (ajustPrecParId[c.id] || 0))
+      : Math.max(0, joursBase + (ajustParId[c.id] || 0));
     return s + joursRetenus * c.prix_jour;
   }, 0);
 
