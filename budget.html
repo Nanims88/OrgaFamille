@@ -143,6 +143,7 @@
           <option value="courses">Courses</option>
           <option value="enfants">Dépenses enfants</option>
           <option value="autre">Autre</option>
+          <option value="recette">Recette exceptionnelle (prime, remboursement...)</option>
         </select>
         <input type="text" id="dv-libelle" placeholder="Libellé (optionnel)">
         <select id="dv-enfant"><option value="">Enfant : —</option></select>
@@ -154,6 +155,7 @@
         <input type="date" id="dv-date">
         <button class="btn" type="submit">Ajouter</button>
       </form>
+      <p style="color:var(--ink-soft);font-size:0.85rem;margin-top:8px;">Une dépense avancée par une personne lui est recréditée en totalité, l'autre paye sa part le mois prochain. Une recette (déjà versée en totalité au compte commun par celui qui l'a reçue) profite aux deux au prorata sur le mois prochain, sans recrédit.</p>
     </div>
 
     <h3 id="ce-titre-form" style="font-size:1.05rem;margin:20px 0 8px;">Ajouter une charge fixe enfant</h3>
@@ -680,16 +682,19 @@ async function chargerDepenses() {
   const membresParId = Object.fromEntries(_adultes.map(m => [m.id, m]));
   const enfantsParId = Object.fromEntries(_enfants.map(e => [e.id, e]));
 
-  document.getElementById('zone-depenses').innerHTML = (data || []).map(d => `
+  document.getElementById('zone-depenses').innerHTML = (data || []).map(d => {
+    const estRecette = d.categorie === 'recette';
+    return `
     <div class="carte" style="border-left:4px solid ${membresParId[d.membre_id] ? membresParId[d.membre_id].couleur : 'var(--border)'}">
-      <strong>${d.montant.toFixed(2)} €</strong> ${d.libelle ? '— ' + d.libelle : ''}<br>
-      <span style="color:var(--ink-soft);font-size:0.85rem;">${d.categorie} · ${new Date(d.date).toLocaleDateString('fr-FR')} · ${labelRepartition(d.repartition)}</span>
+      <strong style="color:${estRecette ? 'var(--louis)' : 'var(--ink)'}">${estRecette ? '+' : ''}${d.montant.toFixed(2)} €</strong> ${d.libelle ? '— ' + d.libelle : ''}<br>
+      <span style="color:var(--ink-soft);font-size:0.85rem;">${estRecette ? 'Recette' : d.categorie} · ${new Date(d.date).toLocaleDateString('fr-FR')} · ${labelRepartition(d.repartition)}</span>
       <div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap;">${badgeMembre(membresParId[d.membre_id])} ${d.enfant_id && enfantsParId[d.enfant_id] ? badgeMembre(enfantsParId[d.enfant_id]) : ''}</div>
       <div style="margin-top:8px;">
         <button class="btn btn-discret" onclick="supprimerDepense('${d.id}')">Supprimer</button>
       </div>
     </div>
-  `).join('') || '<div class="vide">Aucune dépense saisie ce mois-ci.</div>';
+  `;
+  }).join('') || '<div class="vide">Aucune dépense saisie ce mois-ci.</div>';
 }
 function moisSuivantStr(aaaammStr) {
   const [a, m] = aaaammStr.split('-').map(Number);
@@ -781,21 +786,28 @@ async function calculerFluxMois(mois) {
   const soldeVariablePrec = {};
   _adultes.forEach(m => soldeVariablePrec[m.id] = 0);
   depensesPrec.forEach(d => {
-    _adultes.forEach(m => { soldeVariablePrec[m.id] += d.montant * tauxRepartitionAvec(d.repartition, m.id, pourcentagesPrec); });
+    // Une recette (prime...) est deja versee en totalite au compte commun par celui qui l'a recue :
+    // elle profite aux deux au prorata. Une depense est avancee de la poche de celui qui l'a payee :
+    // il est entierement recredite plus bas, l'autre ne paye que sa part.
+    const signe = d.categorie === 'recette' ? -1 : 1;
+    _adultes.forEach(m => { soldeVariablePrec[m.id] += signe * d.montant * tauxRepartitionAvec(d.repartition, m.id, pourcentagesPrec); });
   });
-  depensesPrec.forEach(d => { if (soldeVariablePrec[d.membre_id] !== undefined) soldeVariablePrec[d.membre_id] -= d.montant; });
+  depensesPrec.filter(d => d.categorie !== 'recette').forEach(d => {
+    if (soldeVariablePrec[d.membre_id] !== undefined) soldeVariablePrec[d.membre_id] -= d.montant;
+  });
 
   const solde = {};
   _adultes.forEach(m => { solde[m.id] = partTheorique[m.id] - dejaPaye[m.id] + soldeVariablePrec[m.id]; });
 
-  const totalDepensesPrec = depensesPrec.reduce((s, d) => s + d.montant, 0);
+  const totalDepensesPrec = depensesPrec.filter(d => d.categorie !== 'recette').reduce((s, d) => s + d.montant, 0);
+  const totalRecettesPrec = depensesPrec.filter(d => d.categorie === 'recette').reduce((s, d) => s + d.montant, 0);
   // Total réellement encaissé sur le compte commun : chacun verse l'arrondi supérieur de ce qu'il doit ; un "trop versé" n'est pas retiré du compte.
   const totalAVerser = Object.values(solde).reduce((s, v) => s + Math.ceil(Math.max(0, v)), 0);
   // Le carburant est payé en direct par chacun (voir dejaPaye) : il ne transite jamais par le compte commun.
   const totalCarburant = Object.values(dejaPaye).reduce((s, v) => s + v, 0);
   const totalCommun = totalMois - totalCarburant;
 
-  return { totalMois, totalCommun, partTheorique, dejaPaye, soldeVariablePrec, solde, totalDepensesPrec, totalAVerser };
+  return { totalMois, totalCommun, partTheorique, dejaPaye, soldeVariablePrec, solde, totalDepensesPrec, totalRecettesPrec, totalAVerser };
 }
 
 // ---------- Solde du compte commun (figé par mois, ajustable ; suggéré à partir du mois précédent) ----------
@@ -844,7 +856,7 @@ async function chargerResume() {
   const { data: statutsData } = await sb.from('budget_charges_fixes_statut').select('*').eq('mois', mois);
   const statutParCharge = Object.fromEntries((statutsData || []).map(s => [s.charge_id, s.paye]));
 
-  const { totalMois, totalCommun, partTheorique, dejaPaye, soldeVariablePrec, solde, totalDepensesPrec, totalAVerser } = await calculerFluxMois(mois);
+  const { totalMois, totalCommun, partTheorique, dejaPaye, soldeVariablePrec, solde, totalDepensesPrec, totalRecettesPrec, totalAVerser } = await calculerFluxMois(mois);
   const soldeFinMois = _soldeDebutMoisCourant - totalCommun + totalAVerser;
 
   const resteAPrelever = _chargesFixesCache.reduce((s, c) => s + (statutParCharge[c.id] ? 0 : _montantsChargesFixes[c.id].montant), 0);
@@ -859,6 +871,7 @@ async function chargerResume() {
       <p><strong>Solde du compte commun en début de mois :</strong> ${_soldeDebutMoisCourant.toFixed(2)} €</p>
       <p><strong>Charges du mois (fixes + carburant + enfants) :</strong> ${totalMois.toFixed(2)} €</p>
       <p style="margin-top:2px;color:var(--ink-soft);font-size:0.85rem;">Dépenses variables saisies en ${new Date(moisPrec + '-01').toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })} (créditées ce mois-ci) : ${totalDepensesPrec.toFixed(2)} €</p>
+      ${totalRecettesPrec ? `<p style="margin-top:2px;color:var(--louis);font-size:0.85rem;">Recettes saisies en ${new Date(moisPrec + '-01').toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })} (déduites ce mois-ci, au prorata) : ${totalRecettesPrec.toFixed(2)} €</p>` : ''}
     </div>
   `;
 
@@ -911,7 +924,7 @@ async function calculerPostesMois(mois) {
     resoudreMontantsChargesFixes(mois),
     sb.from('budget_charges_enfants_ajustement').select('*').eq('mois', mois),
     sb.from('budget_transport').select('*'),
-    sb.from('budget_depenses_variables').select('montant').gte('date', mois + '-01').lt('date', moisSuivantStr(mois))
+    sb.from('budget_depenses_variables').select('montant, categorie').gte('date', mois + '-01').lt('date', moisSuivantStr(mois))
   ]);
 
   const chargesFixes = _chargesFixesCache.reduce((s, c) => s + montantsChargesFixes[c.id].montant, 0);
@@ -924,7 +937,7 @@ async function calculerPostesMois(mois) {
 
   const carburant = (transportRes.data || []).reduce((s, t) => s + t.km_aller * 2 * t.jours_travail_mois * (t.consommation_l_100km / 100) * t.prix_litre, 0);
 
-  const depensesVariables = (depVarRes.data || []).reduce((s, d) => s + d.montant, 0);
+  const depensesVariables = (depVarRes.data || []).reduce((s, d) => s + (d.categorie === 'recette' ? -d.montant : d.montant), 0);
 
   return { chargesFixes, chargesEnfants, carburant, depensesVariables };
 }
