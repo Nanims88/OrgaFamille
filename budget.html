@@ -607,19 +607,24 @@ async function chargerChargesEnfants() {
     const enfant = enfantsParId[c.enfant_id];
     return `
       <div class="carte" ${enfant ? `style="border-left:4px solid ${enfant.couleur}"` : ''}>
-        <strong>${c.libelle}</strong> ${enfant ? badgeMembre(enfant) : ''}<br>
-        <span style="color:var(--ink-soft);font-size:0.85rem;">${c.prix_jour.toFixed(2)} € / jour</span>
-        <p style="margin:8px 0 2px;font-size:0.85rem;color:var(--ink-soft);">Jours ouvrés ce mois : ${joursBase}</p>
-        <label style="font-size:0.85rem;">Ajustement (+/-) :
-          <input type="number" step="1" value="${c._ajustement}" style="width:60px;" onchange="ajusterJoursChargeEnfant('${c.id}', '${mois}', this.value)">
-        </label>
-        <p style="margin:6px 0;font-size:0.85rem;color:var(--ink-soft);">Jours retenus : <strong>${c._joursRetenus}</strong></p>
-        <span style="font-size:1.2rem;font-weight:800;color:${c._cout < 0 ? 'var(--louis)' : 'var(--ink)'}">${c._cout.toFixed(2)} €</span>
-        <span class="badge-membre" style="background:var(--ink-soft);margin-left:6px;">${labelRepartition(c.repartition)}</span>
-        ${c.impact_mois_suivant ? '<span class="badge-membre" style="background:var(--ink);margin-left:6px;">→ Mois suivant</span>' : ''}
-        <div style="margin-top:10px;display:flex;gap:6px;">
-          <button class="btn btn-clair" onclick="modifierChargeEnfant('${c.id}')">✏️ Modifier</button>
-          <button class="btn btn-discret" onclick="supprimerChargeEnfant('${c.id}')">Supprimer</button>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+          <strong>${c.libelle}</strong>
+          ${enfant ? badgeMembre(enfant) : ''}
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:6px;flex-wrap:wrap;">
+          <span style="color:var(--ink-soft);font-size:0.85rem;">${c.prix_jour.toFixed(2)} €/j · ${joursBase} j ouvrés → <strong>${c._joursRetenus}</strong> retenus</span>
+          <label style="font-size:0.85rem;color:var(--ink-soft);white-space:nowrap;">Ajust. <input type="number" step="1" value="${c._ajustement}" style="width:44px;" onchange="ajusterJoursChargeEnfant('${c.id}', '${mois}', this.value)"></label>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:8px;flex-wrap:wrap;">
+          <div style="display:flex;gap:6px;flex-wrap:wrap;">
+            <span class="badge-membre" style="background:var(--ink-soft);">${labelRepartition(c.repartition)}</span>
+            ${c.impact_mois_suivant ? '<span class="badge-membre" style="background:var(--ink);">→ Mois suivant</span>' : ''}
+          </div>
+          <span style="font-size:1.15rem;font-weight:800;color:${c._cout < 0 ? 'var(--louis)' : 'var(--ink)'}">${c._cout.toFixed(2)} €</span>
+        </div>
+        <div style="margin-top:8px;display:flex;justify-content:flex-end;gap:2px;">
+          <button class="btn btn-icone" onclick="modifierChargeEnfant('${c.id}')" title="Modifier">✏️</button>
+          <button class="btn btn-icone" onclick="supprimerChargeEnfant('${c.id}')" title="Supprimer">🗑️</button>
         </div>
       </div>
     `;
