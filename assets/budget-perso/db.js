@@ -96,6 +96,7 @@ export const CONFIG_DEFAUT = {
     { id: 'variable', libelle: 'Variable', enveloppe: true },
     { id: 'amazon', libelle: 'Amazon', enveloppe: true },
     { id: 'charge_fixe', libelle: 'Charge fixe (compte joint, prêt...)', enveloppe: false },
+    { id: 'virement_enveloppe', libelle: 'Virement enveloppe (Boursorama)', enveloppe: false },
     { id: 'abonnements', libelle: 'Abonnements', enveloppe: false },
     { id: 'frais_bancaires', libelle: 'Frais bancaires', enveloppe: false },
     { id: '4x', libelle: 'PayPal 4X', enveloppe: false },
@@ -194,6 +195,12 @@ export async function getConfig() {
   // impacter l'enveloppe hebdomadaire / le reste a vivre, contrairement a une depense variable.
   if (!config.categories.some(c => c.id === 'charge_fixe')) {
     config.categories.push({ id: 'charge_fixe', libelle: 'Charge fixe (compte joint, prêt...)', enveloppe: false });
+    modifie = true;
+  }
+  // Categorie dediee au virement hebdomadaire vers l'enveloppe (Boursorama), elle aussi hors enveloppe
+  // puisqu'elle finance la semaine plutot que de la depenser.
+  if (!config.categories.some(c => c.id === 'virement_enveloppe')) {
+    config.categories.push({ id: 'virement_enveloppe', libelle: 'Virement enveloppe (Boursorama)', enveloppe: false });
     modifie = true;
   }
   if (modifie) await sauverConfig(config);

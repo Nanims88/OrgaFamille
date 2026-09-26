@@ -512,7 +512,14 @@ async function renderSemaine(zone) {
     btn.addEventListener('click', async () => {
       const montant = parseFloat(prompt('Montant du virement', btn.dataset.montant));
       if (!montant && montant !== 0) return;
-      await DB.put('virementsHebdo', { id: DB.nouvelId(), dateLundi: btn.dataset.lundi, montantVirement: montant });
+      // Le virement finance la semaine (hors enveloppe) : une seule saisie, sur le compte principal,
+      // qui reduit son solde theorique sans jamais compter comme une depense de l'enveloppe.
+      const transactionId = DB.nouvelId();
+      await DB.put('transactions', {
+        id: transactionId, date: auj(), categorie: 'virement_enveloppe', compte: 'principal',
+        montant: -Math.abs(montant), libelle: `Virement enveloppe (semaine du ${dateFR(btn.dataset.lundi)})`
+      });
+      await DB.put('virementsHebdo', { id: DB.nouvelId(), dateLundi: btn.dataset.lundi, montantVirement: montant, transactionId });
       renderSemaine(zone);
     });
   });
@@ -522,12 +529,18 @@ async function renderSemaine(zone) {
     if (!montant && montant !== 0) return;
     const virement = virements.find(v => v.id === a.dataset.id);
     await DB.put('virementsHebdo', { ...virement, montantVirement: montant });
+    if (virement.transactionId) {
+      const t = await DB.get('transactions', virement.transactionId);
+      if (t) { t.montant = -Math.abs(montant); await DB.put('transactions', t); }
+    }
     renderSemaine(zone);
   }));
   zone.querySelectorAll('.virement-annuler').forEach(a => a.addEventListener('click', async (e) => {
     e.preventDefault();
-    if (!confirm('Annuler ce virement ? La semaine redeviendra "a faire".')) return;
+    if (!confirm('Annuler ce virement ? La semaine redeviendra "a faire", et la sortie correspondante sur le compte principal sera supprimee.')) return;
+    const virement = virements.find(v => v.id === a.dataset.id);
     await DB.remove('virementsHebdo', a.dataset.id);
+    if (virement && virement.transactionId) await DB.remove('transactions', virement.transactionId);
     renderSemaine(zone);
   }));
 }
@@ -542,9 +555,10 @@ async function renderCycle(zone) {
     variable: config.enveloppe.variableMensuel,
     autre: 0
   };
+  const idsEnveloppeCycle = new Set(config.categories.filter(c => c.enveloppe).map(c => c.id));
   const parCategorie = {};
   for (const t of transactions) {
-    if (t.montant >= 0) continue;
+    if (t.montant >= 0 || !idsEnveloppeCycle.has(t.categorie)) continue;
     parCategorie[t.categorie] = (parCategorie[t.categorie] || 0) + Math.abs(t.montant);
   }
   const totalDepense = Object.values(parCategorie).reduce((s, v) => s + v, 0);
