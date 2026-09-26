@@ -342,8 +342,11 @@ async function renderSaisie(zone) {
       </div>
       <p id="saisie-message" style="font-weight:700;color:var(--ok);min-height:1.2em;"></p>
     </div>
-    <h2 class="section-titre">Dernieres saisies</h2>
-    <div class="carte" id="saisie-historique"></div>
+    <h2 class="section-titre">Saisies</h2>
+    <details class="carte" id="saisie-historique-volet">
+      <summary style="cursor:pointer;font-weight:700;" id="saisie-historique-resume">Voir toutes les saisies</summary>
+      <div id="saisie-historique" style="margin-top:10px;"></div>
+    </details>
   `;
 
   const rafraichirCategories = (categorieAChoisir) => {
@@ -430,10 +433,10 @@ async function supprimerSaisie(zone, id) {
 }
 
 async function rafraichirHistoriqueSaisie(zone) {
-  const toutes = await DB.getAll('transactions');
-  const dix = toutes.sort((a, b) => b.date.localeCompare(a.date)).slice(0, 10);
+  const toutes = (await DB.getAll('transactions')).sort((a, b) => b.date.localeCompare(a.date));
+  zone.querySelector('#saisie-historique-resume').textContent = `Voir toutes les saisies (${toutes.length})`;
   const historique = zone.querySelector('#saisie-historique');
-  historique.innerHTML = dix.length ? dix.map(t => `
+  historique.innerHTML = toutes.length ? toutes.map(t => `
     <div class="item-ligne" data-id="${t.id}">
       <span>${dateFR(t.date)} — ${t.libelle} <span class="pastille-categorie">${t.categorie}</span></span>
       <span class="montant">${eur(t.montant)}
@@ -444,7 +447,7 @@ async function rafraichirHistoriqueSaisie(zone) {
 
   historique.querySelectorAll('.saisie-modifier').forEach(a => a.addEventListener('click', (e) => {
     e.preventDefault();
-    const t = dix.find(x => x.id === a.dataset.id);
+    const t = toutes.find(x => x.id === a.dataset.id);
     if (t && zone._chargerPourEdition) zone._chargerPourEdition(t);
   }));
   historique.querySelectorAll('.saisie-supprimer').forEach(a => a.addEventListener('click', (e) => {
