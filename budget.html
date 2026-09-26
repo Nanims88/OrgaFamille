@@ -690,7 +690,7 @@ function preremplirRepartitionDepense() {
 async function chargerDepenses() {
   const mois = moisAAAAMM(moisConsulte());
   const { data } = await sb.from('budget_depenses_variables').select('*')
-    .gte('date', mois + '-01').lt('date', moisSuivantStr(mois)).order('date', { ascending: false });
+    .gte('date', mois + '-01').lt('date', moisSuivantStr(mois)).order('date', { ascending: false }).order('cree_le', { ascending: false });
   const membresParId = Object.fromEntries(_adultes.map(m => [m.id, m]));
   const enfantsParId = Object.fromEntries(_enfants.map(e => [e.id, e]));
 
