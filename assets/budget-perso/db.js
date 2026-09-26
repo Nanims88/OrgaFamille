@@ -95,6 +95,7 @@ export const CONFIG_DEFAUT = {
     { id: 'tabac', libelle: 'Tabac', enveloppe: true },
     { id: 'variable', libelle: 'Variable', enveloppe: true },
     { id: 'amazon', libelle: 'Amazon', enveloppe: true },
+    { id: 'charge_fixe', libelle: 'Charge fixe (compte joint, prêt...)', enveloppe: false },
     { id: 'abonnements', libelle: 'Abonnements', enveloppe: false },
     { id: 'frais_bancaires', libelle: 'Frais bancaires', enveloppe: false },
     { id: '4x', libelle: 'PayPal 4X', enveloppe: false },
@@ -184,10 +185,18 @@ export async function initialiserSiVide() {
 
 export async function getConfig() {
   const config = (await get('config', 'config')) || CONFIG_DEFAUT;
+  let modifie = false;
   if (!config.dateDemarrage) {
     config.dateDemarrage = toISODate(new Date());
-    await sauverConfig(config);
+    modifie = true;
   }
+  // Categorie ajoutee apres coup : les charges fixes (compte joint, pret...) ne doivent pas
+  // impacter l'enveloppe hebdomadaire / le reste a vivre, contrairement a une depense variable.
+  if (!config.categories.some(c => c.id === 'charge_fixe')) {
+    config.categories.push({ id: 'charge_fixe', libelle: 'Charge fixe (compte joint, prêt...)', enveloppe: false });
+    modifie = true;
+  }
+  if (modifie) await sauverConfig(config);
   return config;
 }
 
