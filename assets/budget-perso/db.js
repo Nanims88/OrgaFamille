@@ -101,6 +101,8 @@ export const CONFIG_DEFAUT = {
     { id: 'soins', libelle: 'Soins', enveloppe: true },
     { id: 'cadeaux', libelle: 'Cadeaux', enveloppe: true },
     { id: 'maison', libelle: 'Maison', enveloppe: true },
+    { id: 'psy', libelle: 'Psy', enveloppe: true },
+    { id: 'voiture', libelle: 'Voiture (entretien, réparations)', enveloppe: true },
     { id: 'charge_fixe', libelle: 'Charge fixe (compte joint, prêt...)', enveloppe: false },
     { id: 'virement_enveloppe', libelle: 'Virement enveloppe (Boursorama)', enveloppe: false },
     { id: 'abonnements', libelle: 'Abonnements', enveloppe: false },
@@ -216,7 +218,9 @@ export async function getConfig() {
     { id: 'vetements', libelle: 'Vêtements', enveloppe: true },
     { id: 'soins', libelle: 'Soins', enveloppe: true },
     { id: 'cadeaux', libelle: 'Cadeaux', enveloppe: true },
-    { id: 'maison', libelle: 'Maison', enveloppe: true }
+    { id: 'maison', libelle: 'Maison', enveloppe: true },
+    { id: 'psy', libelle: 'Psy', enveloppe: true },
+    { id: 'voiture', libelle: 'Voiture (entretien, réparations)', enveloppe: true }
   ];
   for (const cat of CATEGORIES_PRECISES) {
     if (!config.categories.some(c => c.id === cat.id)) {

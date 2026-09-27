@@ -553,7 +553,7 @@ async function renderCycle(zone) {
     courses: config.enveloppe.coursesMensuel,
     tabac: config.enveloppe.tabacMensuel,
     variable: config.enveloppe.variableMensuel,
-    cafe: 0, restaurant: 0, vetements: 0, soins: 0, cadeaux: 0, maison: 0, autre: 0
+    cafe: 0, restaurant: 0, vetements: 0, soins: 0, cadeaux: 0, maison: 0, psy: 0, voiture: 0, autre: 0
   };
   const libelleCategorie = Object.fromEntries(config.categories.map(c => [c.id, c.libelle]));
   const idsEnveloppeCycle = new Set(config.categories.filter(c => c.enveloppe).map(c => c.id));
