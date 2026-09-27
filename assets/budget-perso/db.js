@@ -95,6 +95,12 @@ export const CONFIG_DEFAUT = {
     { id: 'tabac', libelle: 'Tabac', enveloppe: true },
     { id: 'variable', libelle: 'Variable', enveloppe: true },
     { id: 'amazon', libelle: 'Amazon', enveloppe: true },
+    { id: 'cafe', libelle: 'Café', enveloppe: true },
+    { id: 'restaurant', libelle: 'Restaurant', enveloppe: true },
+    { id: 'vetements', libelle: 'Vêtements', enveloppe: true },
+    { id: 'soins', libelle: 'Soins', enveloppe: true },
+    { id: 'cadeaux', libelle: 'Cadeaux', enveloppe: true },
+    { id: 'maison', libelle: 'Maison', enveloppe: true },
     { id: 'charge_fixe', libelle: 'Charge fixe (compte joint, prêt...)', enveloppe: false },
     { id: 'virement_enveloppe', libelle: 'Virement enveloppe (Boursorama)', enveloppe: false },
     { id: 'abonnements', libelle: 'Abonnements', enveloppe: false },
@@ -202,6 +208,21 @@ export async function getConfig() {
   if (!config.categories.some(c => c.id === 'virement_enveloppe')) {
     config.categories.push({ id: 'virement_enveloppe', libelle: 'Virement enveloppe (Boursorama)', enveloppe: false });
     modifie = true;
+  }
+  // Categories plus precises pour la depense variable, en plus de la categorie generique "Variable".
+  const CATEGORIES_PRECISES = [
+    { id: 'cafe', libelle: 'Café', enveloppe: true },
+    { id: 'restaurant', libelle: 'Restaurant', enveloppe: true },
+    { id: 'vetements', libelle: 'Vêtements', enveloppe: true },
+    { id: 'soins', libelle: 'Soins', enveloppe: true },
+    { id: 'cadeaux', libelle: 'Cadeaux', enveloppe: true },
+    { id: 'maison', libelle: 'Maison', enveloppe: true }
+  ];
+  for (const cat of CATEGORIES_PRECISES) {
+    if (!config.categories.some(c => c.id === cat.id)) {
+      config.categories.push(cat);
+      modifie = true;
+    }
   }
   if (modifie) await sauverConfig(config);
   return config;

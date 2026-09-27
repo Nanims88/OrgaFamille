@@ -553,8 +553,9 @@ async function renderCycle(zone) {
     courses: config.enveloppe.coursesMensuel,
     tabac: config.enveloppe.tabacMensuel,
     variable: config.enveloppe.variableMensuel,
-    autre: 0
+    cafe: 0, restaurant: 0, vetements: 0, soins: 0, cadeaux: 0, maison: 0, autre: 0
   };
+  const libelleCategorie = Object.fromEntries(config.categories.map(c => [c.id, c.libelle]));
   const idsEnveloppeCycle = new Set(config.categories.filter(c => c.enveloppe).map(c => c.id));
   const parCategorie = {};
   for (const t of transactions) {
@@ -582,7 +583,7 @@ async function renderCycle(zone) {
         ${Object.entries(budgetsCategorie).map(([cat, budget]) => {
           const reel = parCategorie[cat] || 0;
           const e = C.round2(budget - reel);
-          return `<tr><td>${cat}</td><td>${eur(budget)}</td><td>${eur(reel)}</td><td style="color:${e < 0 ? 'var(--danger)' : 'var(--ok)'}">${eur(e)}</td></tr>`;
+          return `<tr><td>${libelleCategorie[cat] || cat}</td><td>${eur(budget)}</td><td>${eur(reel)}</td><td style="color:${e < 0 ? 'var(--danger)' : 'var(--ok)'}">${eur(e)}</td></tr>`;
         }).join('')}
         <tr><td>Total</td><td>${eur(budgetCycleEnveloppe)}</td><td>${eur(totalDepense)}</td><td>${eur(C.round2(budgetCycleEnveloppe - totalDepense))}</td></tr>
       </tbody>
