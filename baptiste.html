@@ -32,6 +32,7 @@
   .defi-message { margin-top: 12px; font-weight: 800; min-height: 1.4em; }
   .defi-message.ok { color: var(--louis); }
   .defi-message.non { color: var(--maman); }
+  .defi-message.vue { color: var(--ink-soft); }
   .defi-jour.resolu { border-color: var(--louis); background: #F1F8EC; }
 </style>
 </head>
@@ -65,6 +66,7 @@
         <input id="defi-reponse" type="text" placeholder="Ta réponse" autocomplete="off">
         <button class="btn" onclick="validerDefi()">Valider</button>
       </div>
+      <button class="btn btn-discret" type="button" id="defi-revelation" style="margin-top:10px;" onclick="demanderRevelationDefi()">🙋 Je donne ma langue au chat (parent)</button>
       <p class="defi-message" id="defi-message"></p>
     </div>
 
@@ -369,17 +371,51 @@ function initDefiJour() {
   const message = document.getElementById('defi-message');
   const zone = document.getElementById('defi-zone');
 
+  const revelation = document.getElementById('defi-revelation');
+
   if (dejaFait === 'reussi') {
     carte.classList.add('resolu');
     zone.style.display = 'none';
+    revelation.style.display = 'none';
     message.className = 'defi-message ok';
     message.textContent = `Défi déjà réussi aujourd'hui, bravo ! 🌟 (réponse : ${defi.reponse})`;
+    return;
+  }
+
+  if (dejaFait === 'vue') {
+    carte.classList.add('resolu');
+    zone.style.display = 'none';
+    revelation.style.display = 'none';
+    message.className = 'defi-message vue';
+    message.textContent = `Réponse : ${defi.reponse} (vue avec un parent, pas d'étoile aujourd'hui)`;
     return;
   }
 
   document.getElementById('defi-reponse').addEventListener('keydown', (e) => {
     if (e.key === 'Enter') validerDefi();
   });
+}
+
+async function demanderRevelationDefi() {
+  const email = prompt('Code parent — email de connexion :');
+  if (!email) return;
+  const motDePasse = prompt('Code parent — mot de passe :');
+  if (!motDePasse) return;
+
+  const { error } = await sb.auth.signInWithPassword({ email, password: motDePasse });
+  if (error) {
+    alert('Code refusé.');
+    return;
+  }
+
+  const defi = defiDuJour();
+  localStorage.setItem('defi_' + dateAujourdhui(), 'vue');
+  document.getElementById('defi-jour').classList.add('resolu');
+  document.getElementById('defi-zone').style.display = 'none';
+  document.getElementById('defi-revelation').style.display = 'none';
+  const message = document.getElementById('defi-message');
+  message.className = 'defi-message vue';
+  message.textContent = `Réponse : ${defi.reponse} (vue avec un parent, pas d'étoile aujourd'hui)`;
 }
 
 function validerDefi() {
@@ -396,6 +432,7 @@ function validerDefi() {
     localStorage.setItem('defi_' + dateAujourdhui(), 'reussi');
     document.getElementById('defi-jour').classList.add('resolu');
     document.getElementById('defi-zone').style.display = 'none';
+    document.getElementById('defi-revelation').style.display = 'none';
     message.className = 'defi-message ok';
     message.textContent = 'Bravo Baptiste, bonne réponse ! 🎉';
     if (window.confetti) {
