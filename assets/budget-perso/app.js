@@ -165,6 +165,21 @@ async function transactionsEntre(debutISO, finISO) {
   return toutes.filter(t => t.date >= debutISO && t.date <= finISO);
 }
 
+// Solde reel du compte principal : dernier solde connu + mouvements reels depuis (jamais les
+// saisies a une date future, qui ne sont encore qu'une anticipation).
+async function soldePrincipalActuel(config) {
+  if (!config.dernierSolde.date) return { montant: config.dernierSolde.montant, connu: false, mouvements: [] };
+  const mouvements = (await DB.getAll('transactions')).filter(t => t.compte === 'principal' && t.date > config.dernierSolde.date && t.date <= auj());
+  const montant = C.soldeTheorique({ soldeInitial: config.dernierSolde.montant, transactions: mouvements });
+  return { montant, connu: true, mouvements };
+}
+
+// Ne jamais suggerer de virer plus que ce que le decouvert autorise permet reellement.
+function plafonnerParDecouvert(montantSuggere, soldeReel, seuilDecouvertAutorise) {
+  const margeDisponible = Math.max(0, C.round2(soldeReel - seuilDecouvertAutorise));
+  return C.round2(Math.min(montantSuggere, margeDisponible));
+}
+
 function totalDepenses(transactions, filtreCategorie) {
   return transactions
     .filter(t => t.montant < 0 && (!filtreCategorie || filtreCategorie(t.categorie)))
@@ -181,39 +196,80 @@ function seuilLundiSuivi(config) {
   return C.toISODate(C.lundiDeLaSemaine(C.parseISODate(config.dateDemarrage)));
 }
 
-async function resteSemaineCourante() {
+// Calcule chaque semaine du cycle une seule fois (disponible, depense, virement fait ou
+// suggere...) : base commune reutilisee par l'accueil, l'onglet Semaine et les projections,
+// pour ne jamais avoir deux endroits qui refont le meme calcul avec un risque de diverger.
+// Le montant suggere pour une semaine pas encore faite est plafonne par le decouvert autorise
+// reellement disponible aujourd'hui : jamais de suggestion qu'on ne pourrait pas se permettre.
+async function calculerSemainesCycle() {
   const { config, debut, fin, enveloppeHebdo } = await infosCycle();
   const seuil = seuilLundiSuivi(config);
-  const lundis = C.listerLundis(debut, fin).filter(l => C.toISODate(l) >= seuil);
+  const lundis = C.listerLundis(debut, fin);
   const virements = await DB.getAll('virementsHebdo');
-  const idsCategoriesEnveloppe = new Set(config.categories.filter(c => c.enveloppe).map(c => c.id));
+  const idsEnveloppe = new Set(config.categories.filter(c => c.enveloppe).map(c => c.id));
+  const { montant: soldeReel } = await soldePrincipalActuel(config);
 
   let reportPrecedent = 0;
-  let derniereSemaine = null;
-  let semaineCourante = null;
+  const semaines = [];
   for (const lundi of lundis) {
     const dateLundi = C.toISODate(lundi);
+    if (dateLundi < seuil) {
+      semaines.push({ dateLundi, neutralisee: true });
+      continue;
+    }
     const dimanche = C.addDays(lundi, 6);
     const dateFinSemaine = C.toISODate(dimanche <= fin ? dimanche : fin);
     const transactionsSemaine = await transactionsEntre(dateLundi, dateFinSemaine);
-    const depense = totalDepenses(transactionsSemaine, id => idsCategoriesEnveloppe.has(id));
+    const depense = totalDepenses(transactionsSemaine, id => idsEnveloppe.has(id));
     const virement = virements.find(v => v.dateLundi === dateLundi);
-    const montantVirement = virement ? virement.montantVirement : enveloppeHebdo;
-    const { disponible, reste } = C.soldeSemaine({ budgetSemaine: montantVirement, reportPrecedent, depense });
-    // Pas encore vire : ce qu'il reste a virer tient deja compte des saisies faites cette semaine.
-    const virementSuggere = virement ? virement.montantVirement : Math.max(0, reste);
+    const montantVirement = virement ? virement.montantVirement : null;
+    const budgetEffectif = montantVirement !== null ? montantVirement : enveloppeHebdo;
+    const { disponible, reste } = C.soldeSemaine({ budgetSemaine: budgetEffectif, reportPrecedent, depense });
+    // Pas encore vire : le montant suggere tient compte des saisies deja faites cette semaine
+    // (se reajuste tout seul) et ne depasse jamais ce que le decouvert autorise permet.
+    const suggestionTheorique = virement ? montantVirement : Math.max(0, reste);
+    const virementSuggere = virement ? montantVirement : plafonnerParDecouvert(suggestionTheorique, soldeReel, config.seuilDecouvertAutorise);
+    const reduitPourDecouvert = !virement && virementSuggere < suggestionTheorique;
     const aujourdhui = dateLundi <= auj() && auj() <= dateFinSemaine;
-    derniereSemaine = { dateLundi, dateFinSemaine, disponible, reste, depense, montantVirement: virementSuggere, fait: !!virement, aujourdhui };
+    semaines.push({
+      dateLundi, dateFinSemaine, disponible, reste, depense, montantVirement, virementSuggere,
+      suggestionTheorique, reduitPourDecouvert, fait: !!virement, idVirement: virement ? virement.id : null,
+      aujourdhui, neutralisee: false
+    });
     reportPrecedent = reste;
-    if (aujourdhui) { semaineCourante = derniereSemaine; break; }
   }
-  // La semaine en cours prime : sans ca, la derniere semaine du cycle (future) ecraserait l'affichage.
-  return semaineCourante || derniereSemaine;
+  return semaines;
+}
+
+// La semaine en cours prime sur les autres ; a defaut (cycle a peine demarre), on retombe sur
+// la derniere connue plutot que de planter l'affichage.
+function semaineCouranteParmi(semaines) {
+  const actives = semaines.filter(s => !s.neutralisee);
+  if (!actives.length) return null;
+  return actives.find(s => s.aujourdhui) || actives[actives.length - 1];
+}
+
+// Ce qu'il reste reellement a virer vers l'enveloppe pour financer tout le reste du cycle.
+// Attention : le "virement suggere" de chaque semaine (calculerSemainesCycle) est deja cumulatif
+// (il inclut le report des semaines precedentes pas encore virees) -- les additionner entre elles
+// compterait plusieurs fois la meme somme. Le vrai montant encore du est simplement le budget
+// total du cycle moins ce qui a deja ete reellement vire, jamais negatif (un virement d'avance ne
+// doit pas donner l'impression qu'on doit "moins que rien"). Utilise a la fois par le "reste a
+// vivre reel" de l'accueil et par la projection de tresorerie, pour ne jamais diverger.
+async function virementsEnveloppeRestants() {
+  const { budgetCycleEnveloppe } = await infosCycle();
+  const semaines = await calculerSemainesCycle();
+  const dejaVire = C.round2(semaines.filter(s => !s.neutralisee && s.fait).reduce((s, sem) => s + sem.montantVirement, 0));
+  const virementsRestants = Math.max(0, C.round2(budgetCycleEnveloppe - dejaVire));
+  const prochainLundiPasFait = semaines.find(s => !s.neutralisee && !s.fait) || null;
+  return { virementsRestants, prochainLundiPasFait, semaines };
 }
 
 async function renderAccueil(zone) {
   const { config, debut, fin, enveloppeHebdo, budgetCycleEnveloppe } = await infosCycle();
-  const semaine = await resteSemaineCourante() || { dateLundi: config.dateDemarrage, reste: budgetCycleEnveloppe, disponible: 0, depense: 0, montantVirement: enveloppeHebdo };
+  const { virementsRestants, semaines } = await virementsEnveloppeRestants();
+  const semaine = semaineCouranteParmi(semaines)
+    || { dateLundi: config.dateDemarrage, reste: budgetCycleEnveloppe, disponible: 0, depense: 0, virementSuggere: enveloppeHebdo, fait: false };
   const transactionsCycle = (await transactionsEntre(C.toISODate(debut), C.toISODate(fin))).filter(t => t.date >= config.dateDemarrage);
   const idsEnveloppe = new Set(config.categories.filter(c => c.enveloppe).map(c => c.id));
   const depenseCycle = totalDepenses(transactionsCycle, id => idsEnveloppe.has(id));
@@ -225,17 +281,17 @@ async function renderAccueil(zone) {
   const pourcentSemaine = semaine.disponible > 0 ? Math.min(100, Math.max(0, (semaine.reste / semaine.disponible) * 100)) : 0;
   const classeJaugeSemaine = semaine.reste < 0 ? 'danger' : (pourcentSemaine < 25 ? 'attention' : '');
 
-  let soldePrincipal = config.dernierSolde.montant;
-  let soldeDetailHTML = '<div style="font-size:.75rem;color:var(--ink-soft)">aucun solde saisi</div>';
-  if (config.dernierSolde.date) {
-    // Seules les saisies jusqu'a aujourd'hui comptent dans le solde actuel : une saisie a une
-    // date future est une anticipation, pas encore un mouvement reel sur le compte.
-    const mouvementsDepuis = (await DB.getAll('transactions')).filter(t => t.compte === 'principal' && t.date > config.dernierSolde.date && t.date <= auj());
-    soldePrincipal = C.soldeTheorique({ soldeInitial: config.dernierSolde.montant, transactions: mouvementsDepuis });
-    soldeDetailHTML = mouvementsDepuis.length
+  const { montant: soldePrincipal, connu: soldeConnu, mouvements: mouvementsDepuisSolde } = await soldePrincipalActuel(config);
+  const soldeDetailHTML = !soldeConnu
+    ? '<div style="font-size:.75rem;color:var(--ink-soft)">aucun solde saisi</div>'
+    : mouvementsDepuisSolde.length
       ? `<div style="font-size:.75rem;color:var(--ink-soft)">solde saisi ${eur(config.dernierSolde.montant)} le ${dateFR(config.dernierSolde.date)}</div>`
       : `<div style="font-size:.75rem;color:var(--ink-soft)">saisi le ${dateFR(config.dernierSolde.date)}</div>`;
-  }
+
+  // Reste a vivre reel : le solde du compte principal, une fois retire tout ce qui doit encore
+  // partir vers l'enveloppe pour financer le reste du cycle (les charges fixes, elles, sont deja
+  // reputees passees en debut de cycle et donc deja dans ce solde).
+  const resteAVivreReel = C.round2(soldePrincipal - virementsRestants);
 
   zone.innerHTML = `
     <div class="stat-grid">
@@ -243,6 +299,11 @@ async function renderAccueil(zone) {
         <div class="label">Solde compte principal</div>
         <div class="valeur">${eur(soldePrincipal)}</div>
         ${soldeDetailHTML}
+      </div>
+      <div class="stat-carte ${resteAVivreReel < 0 ? 'negatif' : 'positif'}">
+        <div class="label">Reste a vivre reel</div>
+        <div class="valeur">${eur(resteAVivreReel)}</div>
+        <div style="font-size:.75rem;color:var(--ink-soft)">solde − ${eur(virementsRestants)} de virements enveloppe pas encore faits</div>
       </div>
       <div class="stat-carte ${resteCycle < 0 ? 'negatif' : 'positif'}">
         <div class="label">Reste du cycle (enveloppe)</div>
@@ -259,8 +320,9 @@ async function renderAccueil(zone) {
     <div class="carte jauge-ligne">
       <div class="jauge-entete"><span>Semaine du ${dateFR(semaine.dateLundi)}</span><span>${eur(semaine.reste)} restant</span></div>
       <div class="jauge-fond"><div class="jauge-barre ${classeJaugeSemaine}" style="width:${pourcentSemaine}%"></div></div>
-      <p style="font-size:.82rem;color:var(--ink-soft);margin:8px 0 0">Virement ${semaine.fait ? '' : '(suggere) '}: ${eur(semaine.montantVirement)} — depense : ${eur(semaine.depense)}</p>
+      <p style="font-size:.82rem;color:var(--ink-soft);margin:8px 0 0">Virement ${semaine.fait ? '' : '(suggere) '}: ${eur(semaine.virementSuggere)} — depense : ${eur(semaine.depense)}</p>
       <p style="font-size:.72rem;color:var(--ink-soft);margin:4px 0 0">Enveloppe theorique : ${eur(enveloppeHebdo)}/semaine</p>
+      ${semaine.reduitPourDecouvert ? `<p style="font-size:.72rem;color:var(--danger);margin:4px 0 0">⚠️ Reduit pour respecter le decouvert autorise (theorique : ${eur(semaine.suggestionTheorique)})</p>` : ''}
     </div>
 
     ${projection.premierFranchissementDecouvert ? `
@@ -313,15 +375,27 @@ async function echeancesProchaines(nbJours) {
       }
     }
   }
+
+  // Ce qui reste a virer vers l'enveloppe pour le reste du cycle est aussi de l'argent qui va
+  // sortir du compte principal : sans lui, l'echeancier et la projection de tresorerie ignorent
+  // une bonne partie de ce qui va reellement etre depense. Ajoute en une seule fois sur le
+  // prochain lundi pas encore vire (voir virementsEnveloppeRestants : les suggestions
+  // hebdomadaires sont cumulatives, jamais additionnees entre elles).
+  const { virementsRestants, prochainLundiPasFait } = await virementsEnveloppeRestants();
+  if (virementsRestants > 0 && prochainLundiPasFait && prochainLundiPasFait.dateLundi >= auj() && prochainLundiPasFait.dateLundi <= C.toISODate(fin)) {
+    liste.push({ date: prochainLundiPasFait.dateLundi, libelle: 'Virements enveloppe restants du cycle', montant: -virementsRestants });
+  }
+
   return liste.sort((a, b) => a.date.localeCompare(b.date));
 }
 
 async function calculerProjectionAuto() {
   const config = await DB.getConfig();
+  const { montant: soldeInitial } = await soldePrincipalActuel(config);
   const mouvements = (await echeancesProchaines(31)).map(e => ({ date: e.date, libelle: e.libelle, montant: e.montant }));
   return C.projectionTresorerie({
-    soldeInitial: config.dernierSolde.montant,
-    dateDebut: config.dernierSolde.date || auj(),
+    soldeInitial,
+    dateDebut: auj(),
     mouvements,
     seuilDecouvert: config.seuilDecouvertAutorise
   });
@@ -503,36 +577,11 @@ async function rafraichirHistoriqueSaisie(zone) {
 
 async function renderSemaine(zone) {
   const { config, debut, fin, enveloppeHebdo } = await infosCycle();
-  const seuil = seuilLundiSuivi(config);
-  const lundis = C.listerLundis(debut, fin);
+  const lignes = await calculerSemainesCycle();
   const virements = await DB.getAll('virementsHebdo');
-  const idsEnveloppe = new Set(config.categories.filter(c => c.enveloppe).map(c => c.id));
-
-  let reportPrecedent = 0;
-  const lignes = [];
-  for (const lundi of lundis) {
-    const dateLundi = C.toISODate(lundi);
-    const neutralisee = dateLundi < seuil;
-    if (neutralisee) {
-      lignes.push({ dateLundi, neutralisee: true });
-      continue;
-    }
-    const dimanche = C.addDays(lundi, 6);
-    const dateFinSemaine = C.toISODate(dimanche <= fin ? dimanche : fin);
-    const transactionsSemaine = await transactionsEntre(dateLundi, dateFinSemaine);
-    const depense = totalDepenses(transactionsSemaine, id => idsEnveloppe.has(id));
-    const virement = virements.find(v => v.dateLundi === dateLundi);
-    const montantVirement = virement ? virement.montantVirement : null;
-    const budgetEffectif = montantVirement !== null ? montantVirement : enveloppeHebdo;
-    const { disponible, reste } = C.soldeSemaine({ budgetSemaine: budgetEffectif, reportPrecedent, depense });
-    // Pas encore vire : le montant suggere tient compte des saisies deja faites cette semaine (se reajuste tout seul).
-    const virementSuggere = virement ? montantVirement : Math.max(0, reste);
-    lignes.push({ dateLundi, dateFinSemaine, disponible, reste, depense, montantVirement, virementSuggere, fait: !!virement, idVirement: virement ? virement.id : null });
-    reportPrecedent = reste;
-  }
 
   zone.innerHTML = `
-    <p style="color:var(--ink-soft)">Cycle du ${dateFR(C.toISODate(debut))} au ${dateFR(C.toISODate(fin))} — ${lundis.length} lundi(s), enveloppe theorique ${eur(enveloppeHebdo)}/semaine. Suivi actif depuis le ${dateFR(config.dateDemarrage)}.</p>
+    <p style="color:var(--ink-soft)">Cycle du ${dateFR(C.toISODate(debut))} au ${dateFR(C.toISODate(fin))} — ${lignes.length} lundi(s), enveloppe theorique ${eur(enveloppeHebdo)}/semaine. Suivi actif depuis le ${dateFR(config.dateDemarrage)}.</p>
     ${lignes.map(l => l.neutralisee ? `
       <div class="carte jauge-ligne" style="opacity:.55">
         <div class="jauge-entete"><span>Semaine du ${dateFR(l.dateLundi)}</span><span>avant le demarrage</span></div>
@@ -549,6 +598,7 @@ async function renderSemaine(zone) {
           Disponible : ${eur(l.disponible)} (virement ${l.fait ? eur(l.montantVirement) : 'a faire, ' + eur(l.virementSuggere)}) — Depense : ${eur(l.depense)}
           ${l.fait ? `<a href="#" class="virement-modifier" data-id="${l.idVirement}" data-montant="${l.montantVirement}" style="margin-left:8px">✏️ Modifier</a> <a href="#" class="virement-annuler" data-id="${l.idVirement}" style="margin-left:4px">🗑️ Annuler</a>` : ''}
         </p>
+        ${l.reduitPourDecouvert ? `<p style="font-size:.75rem;color:var(--danger);margin:4px 0 0">⚠️ Reduit pour respecter le decouvert autorise (theorique : ${eur(l.suggestionTheorique)})</p>` : ''}
         ${!l.fait ? `<button class="btn" data-lundi="${l.dateLundi}" data-montant="${l.virementSuggere}" style="margin-top:8px">Faire le virement (${eur(l.virementSuggere)})</button>` : ''}
       </div>
     `).join('')}
@@ -1071,6 +1121,7 @@ function normaliserMontant(s) {
 }
 
 async function renderDonnees(zone) {
+  const config = await DB.getConfig();
   const regles = await DB.getAll('reglesImport');
   zone.innerHTML = `
     <h2 class="section-titre" style="margin-top:0">Import CSV bancaire</h2>
@@ -1139,7 +1190,7 @@ async function renderDonnees(zone) {
         <tbody>${operations.map((o, i) => `
           <tr><td>${dateFR(o.date)}</td><td>${o.libelle}</td><td>
             <select class="import-cat" data-i="${i}">
-              ${['carburant', 'courses', 'tabac', 'variable', 'amazon', '4x', 'abonnements', 'frais_bancaires', 'autre'].map(c => `<option value="${c}" ${c === o.categorie ? 'selected' : ''}>${c}</option>`).join('')}
+              ${config.categories.map(c => `<option value="${c.id}" ${c.id === o.categorie ? 'selected' : ''}>${c.libelle}</option>`).join('')}
             </select>
           </td><td>${eur(o.montant)}</td></tr>
         `).join('')}</tbody>

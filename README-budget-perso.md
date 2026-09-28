@@ -11,9 +11,10 @@ Avant les écrans, quelques mots-clés utilisés partout dans l'app :
 - **Cycle** : ton "mois" à toi, qui ne commence pas forcément le 1er mais au jour de paie que tu as choisi (réglable dans Paramètres). Un cycle va d'une paie à la suivante.
 - **Enveloppe** : le budget des dépenses du quotidien (carburant, courses, tabac, café, restaurant, vêtements, soins, cadeaux, maison, psy, voiture...). C'est LE chiffre à surveiller au jour le jour — tout le reste (charges fixes, dettes) est prévisible et déjà décidé.
 - **Charge fixe** vs **dépense variable** : une charge fixe (loyer côté joint, prêt, assurance...) est connue à l'avance et ne pèse jamais sur l'enveloppe. Une dépense variable (café, courses...) sort de l'enveloppe de la semaine.
-- **Virement enveloppe** : l'argent que tu transfères chaque semaine de ton compte principal vers la carte/compte dédié aux dépenses courantes (Boursorama). Le montant suggéré s'ajuste tout seul si tu as déjà dépensé avant de faire le virement.
+- **Virement enveloppe** : l'argent que tu transfères chaque semaine de ton compte principal vers la carte/compte dédié aux dépenses courantes (Boursorama). Le montant suggéré s'ajuste tout seul si tu as déjà dépensé avant de faire le virement, **et ne dépasse jamais ce que ton découvert autorisé permet réellement** — s'il est réduit pour cette raison, un message te le signale.
 - **Coussin** : une réserve de sécurité (objectif : atteindre un montant cible) qui se remplit avec ce qu'il reste à la fin d'un cycle, avant que le surplus n'aille rembourser le prêt auto en avance.
 - **Compte principal** : le compte sur lequel arrive ton salaire et d'où partent les charges fixes et le virement enveloppe. Son solde affiché est calculé (dernier solde connu + mouvements saisis depuis), pas récupéré automatiquement d'une banque.
+- **Reste à vivre réel** (Accueil) : ton solde réel, moins tout ce qu'il reste encore à transférer vers l'enveloppe pour financer le reste du cycle (`budget de l'enveloppe du cycle − ce qui a déjà été viré`). C'est la réponse honnête à "combien me reste-t-il vraiment", indépendamment du montant suggéré semaine par semaine — il peut être négatif si tes charges fixes et virements restants dépassent ton solde actuel, et c'est volontairement affiché sans le masquer.
 
 ## Navigation : 3 groupes, du plus fréquent au plus rare
 
@@ -23,16 +24,16 @@ Les 10 écrans sont rangés par fréquence d'usage réelle plutôt que tous mis 
 
 | Écran | À quoi il sert |
 |---|---|
-| **Accueil** | Vue d'ensemble en un coup d'œil : solde du compte principal, reste du cycle, coussin, jauge de la semaine en cours, alertes de trésorerie, prochaines échéances (14 jours), top 3 des objectifs. |
+| **Accueil** | Vue d'ensemble en un coup d'œil : solde du compte principal, **reste à vivre réel**, reste du cycle (enveloppe), coussin, jauge de la semaine en cours, alertes de trésorerie, prochaines échéances (14 jours), top 3 des objectifs. |
 | **Saisie** | Enregistrer une dépense ou un revenu (montant, catégorie, compte, date). Historique complet consultable dans un volet repliable. |
-| **Semaine** | Le budget hebdomadaire de l'enveloppe : combien il reste, combien virer. Le bouton "Faire le virement" enregistre automatiquement la sortie sur le compte principal. |
+| **Semaine** | Le budget hebdomadaire de l'enveloppe : combien il reste, combien virer (plafonné par ton découvert autorisé). Le bouton "Faire le virement" enregistre automatiquement la sortie sur le compte principal. |
 
 ### 📊 Le mois
 
 | Écran | À quoi il sert |
 |---|---|
 | **Cycle** | Vue globale du cycle en cours : revenu, charges fixes, enveloppe budgétée, écart. Détail "Réel vs budget" par catégorie. Bouton de clôture qui répartit le reste entre coussin et prêt auto. |
-| **Échéancier** | Ce qui va tomber dans les 30 prochains jours (paie, charges fixes, échéances de crédit). Simulateur de trésorerie : à partir d'un solde et d'une liste de mouvements prévus, détecte si/quand tu risques de passer sous 0 ou sous le découvert autorisé. |
+| **Échéancier** | Ce qui va tomber dans les 30 prochains jours (paie, charges fixes, échéances de crédit, **et ce qu'il reste à virer vers l'enveloppe**). Simulateur de trésorerie : à partir d'un solde et d'une liste de mouvements prévus, détecte si/quand tu risques de passer sous 0 ou sous le découvert autorisé. |
 | **Objectifs** | Suivi de tes objectifs personnels (coussin permanent, plafond tabac, 0 rejet bancaire, dates cibles des crédits, épargne). |
 
 ### ⚙️ De temps en temps
