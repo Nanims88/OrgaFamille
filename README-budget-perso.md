@@ -15,20 +15,34 @@ Avant les écrans, quelques mots-clés utilisés partout dans l'app :
 - **Coussin** : une réserve de sécurité (objectif : atteindre un montant cible) qui se remplit avec ce qu'il reste à la fin d'un cycle, avant que le surplus n'aille rembourser le prêt auto en avance.
 - **Compte principal** : le compte sur lequel arrive ton salaire et d'où partent les charges fixes et le virement enveloppe. Son solde affiché est calculé (dernier solde connu + mouvements saisis depuis), pas récupéré automatiquement d'une banque.
 
-## Les 10 écrans
+## Navigation : 3 groupes, du plus fréquent au plus rare
 
-| Écran | À quoi il sert | Quand y aller |
-|---|---|---|
-| 🏠 **Accueil** | Vue d'ensemble en un coup d'œil : solde du compte principal, reste du cycle, coussin, jauge de la semaine en cours, alertes de trésorerie, prochaines échéances (14 jours), top 3 des objectifs. | Le réflexe du quotidien. |
-| ⚡ **Saisie** | Enregistrer une dépense ou un revenu (montant, catégorie, compte, date). Historique complet consultable dans un volet repliable. | À chaque dépense/revenu à noter. |
-| 📆 **Semaine** | Le budget hebdomadaire de l'enveloppe : combien il reste, combien virer. Le bouton "Faire le virement" enregistre automatiquement la sortie sur le compte principal. | Une fois par semaine, pour faire le virement. |
-| 🔄 **Cycle** | Vue globale du cycle en cours : revenu, charges fixes, enveloppe budgétée, écart. Détail "Réel vs budget" par catégorie. Bouton de clôture qui répartit le reste entre coussin et prêt auto. | En fin de cycle, pour faire les comptes. |
-| 📅 **Échéancier** | Ce qui va tomber dans les 30 prochains jours (paie, charges fixes, échéances de crédit). Simulateur de trésorerie : à partir d'un solde et d'une liste de mouvements prévus, détecte si/quand tu risques de passer sous 0 ou sous le découvert autorisé. | Pour anticiper, avant une grosse dépense par exemple. |
-| 💳 **Dettes** | Détail de chaque crédit (Izicarte, prêt auto, PayPal 4X) : tableau d'amortissement, simulateur "et si je verse un extra ce mois-ci". | Pour suivre l'avancement ou décider d'un remboursement anticipé. |
-| 🎯 **Objectifs** | Suivi de tes objectifs personnels (coussin permanent, plafond tabac, 0 rejet bancaire, dates cibles des crédits, épargne). | Pour te motiver / vérifier où tu en es. |
-| 🎁 **Bonus** | Calculateur ponctuel : répartir un revenu exceptionnel (13e mois, intéressement) entre Noël, remboursement Izicarte, prêt auto et épargne. Liste des gros événements à venir (anniversaires, Noël...) pour t'y préparer. | Seulement quand tu reçois un bonus, ou en fin d'année. |
-| ⚙️ **Paramètres** | Configuration : jour du cycle, revenu, découvert autorisé, charges fixes, réglages de l'enveloppe carburant/courses/tabac/variable, thème clair/sombre, changement du code d'accès. | À la mise en place, ou quand une charge fixe change. |
-| 📁 **Import / Export** | Coller/importer un relevé bancaire CSV (avec règles de catégorisation automatique par mot-clé), exporter toutes tes données en JSON (sauvegarde) ou en CSV. | Ponctuel : sauvegarde, ou import en masse. |
+Les 10 écrans sont rangés par fréquence d'usage réelle plutôt que tous mis au même niveau. En haut, 3 boutons de groupe ; cliquer sur l'un affiche ses écrans juste en dessous.
+
+### 🏠 Au quotidien
+
+| Écran | À quoi il sert |
+|---|---|
+| **Accueil** | Vue d'ensemble en un coup d'œil : solde du compte principal, reste du cycle, coussin, jauge de la semaine en cours, alertes de trésorerie, prochaines échéances (14 jours), top 3 des objectifs. |
+| **Saisie** | Enregistrer une dépense ou un revenu (montant, catégorie, compte, date). Historique complet consultable dans un volet repliable. |
+| **Semaine** | Le budget hebdomadaire de l'enveloppe : combien il reste, combien virer. Le bouton "Faire le virement" enregistre automatiquement la sortie sur le compte principal. |
+
+### 📊 Le mois
+
+| Écran | À quoi il sert |
+|---|---|
+| **Cycle** | Vue globale du cycle en cours : revenu, charges fixes, enveloppe budgétée, écart. Détail "Réel vs budget" par catégorie. Bouton de clôture qui répartit le reste entre coussin et prêt auto. |
+| **Échéancier** | Ce qui va tomber dans les 30 prochains jours (paie, charges fixes, échéances de crédit). Simulateur de trésorerie : à partir d'un solde et d'une liste de mouvements prévus, détecte si/quand tu risques de passer sous 0 ou sous le découvert autorisé. |
+| **Objectifs** | Suivi de tes objectifs personnels (coussin permanent, plafond tabac, 0 rejet bancaire, dates cibles des crédits, épargne). |
+
+### ⚙️ De temps en temps
+
+| Écran | À quoi il sert |
+|---|---|
+| **Dettes** | Détail de chaque crédit (Izicarte, prêt auto, PayPal 4X) : tableau d'amortissement, simulateur "et si je verse un extra ce mois-ci". |
+| **Bonus** | Calculateur ponctuel : répartir un revenu exceptionnel (13e mois, intéressement) entre Noël, remboursement Izicarte, prêt auto et épargne. Liste des gros événements à venir (anniversaires, Noël...) pour t'y préparer. |
+| **Paramètres** | Configuration : jour du cycle, revenu, découvert autorisé, charges fixes, réglages de l'enveloppe carburant/courses/tabac/variable, thème clair/sombre, changement du code d'accès. |
+| **Import / Export** | Coller/importer un relevé bancaire CSV (avec règles de catégorisation automatique par mot-clé), exporter toutes tes données en JSON (sauvegarde) ou en CSV. |
 
 ## Où vivent les données
 

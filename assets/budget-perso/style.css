@@ -112,3 +112,37 @@ textarea.champ-import {
 @media (max-width: 640px) {
   .stat-grid { grid-template-columns: repeat(2, 1fr); }
 }
+
+/* ---------- Navigation a deux niveaux (3 groupes, chacun avec ses onglets) ---------- */
+#nav-onglets {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+}
+.nav-groupes {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.nav-groupe {
+  font-family: 'Nunito', sans-serif;
+  font-weight: 700;
+  font-size: 0.92rem;
+  padding: 9px 16px;
+  border-radius: 999px;
+  border: none;
+  background: transparent;
+  color: var(--ink-soft);
+  cursor: pointer;
+  transition: background .15s ease, color .15s ease;
+}
+.nav-groupe:hover { background: rgba(43,41,36,.05); }
+.nav-groupe.actif { background: var(--paper); color: var(--ink); box-shadow: var(--shadow-1); }
+.nav-sous-groupe {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  padding: 4px 0 4px 10px;
+  margin-left: 6px;
+  border-left: 3px solid var(--border);
+}

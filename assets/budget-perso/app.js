@@ -85,8 +85,30 @@ const RENDUS = {
   donnees: renderDonnees
 };
 
+// Navigation a deux niveaux : les 10 ecrans regroupes par frequence d'usage reelle
+// (quotidien / mensuel / occasionnel), pour eviter de tout mettre au meme niveau.
+const GROUPES = [
+  { id: 'quotidien', label: '🏠 Au quotidien', onglets: ['accueil', 'saisie', 'semaine'] },
+  { id: 'mois', label: '📊 Le mois', onglets: ['cycle', 'echeancier', 'objectifs'] },
+  { id: 'ponctuel', label: '⚙️ De temps en temps', onglets: ['dettes', 'bonus', 'parametres', 'donnees'] }
+];
+
+function groupeDe(ongletId) {
+  return GROUPES.find(g => g.onglets.includes(ongletId)) || GROUPES[0];
+}
+
+// Affiche le sous-menu du groupe demande (et lui seul), sans toucher au reste du DOM.
+function afficherGroupe(groupeId) {
+  const nav = document.getElementById('nav-onglets');
+  nav.querySelectorAll('.nav-groupe').forEach(b => b.classList.toggle('actif', b.dataset.groupe === groupeId));
+  nav.querySelectorAll('.nav-sous-groupe').forEach(sg => {
+    sg.style.display = sg.dataset.sousGroupe === groupeId ? '' : 'none';
+  });
+}
+
 async function route() {
   const id = (location.hash.slice(1) || 'accueil');
+  afficherGroupe(groupeDe(id).id);
   document.querySelectorAll('nav.modules a').forEach(a => a.classList.toggle('actif', a.dataset.onglet === id));
   const zone = document.getElementById('vue');
   zone.innerHTML = '<p class="vide">Chargement…</p>';
@@ -96,7 +118,30 @@ async function route() {
 
 function construireNav() {
   const nav = document.getElementById('nav-onglets');
-  nav.innerHTML = ONGLETS.map(o => `<a href="#${o.id}" data-onglet="${o.id}">${o.label}</a>`).join('');
+  nav.innerHTML = `
+    <div class="nav-groupes">
+      ${GROUPES.map(g => `<button type="button" class="nav-groupe" data-groupe="${g.id}">${g.label}</button>`).join('')}
+    </div>
+    ${GROUPES.map(g => `
+      <div class="nav-sous-groupe" data-sous-groupe="${g.id}" style="display:none;">
+        ${g.onglets.map(id => {
+          const o = ONGLETS.find(x => x.id === id);
+          return `<a href="#${o.id}" data-onglet="${o.id}">${o.label}</a>`;
+        }).join('')}
+      </div>
+    `).join('')}
+  `;
+  nav.querySelectorAll('.nav-groupe').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const groupe = GROUPES.find(g => g.id === btn.dataset.groupe);
+      const ongletCourant = location.hash.slice(1) || 'accueil';
+      if (groupe.onglets.includes(ongletCourant)) {
+        afficherGroupe(groupe.id);
+      } else {
+        location.hash = groupe.onglets[0];
+      }
+    });
+  });
 }
 
 async function infosCycle(refDate = new Date()) {
