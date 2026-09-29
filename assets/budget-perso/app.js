@@ -224,7 +224,11 @@ async function calculerSemainesCycle() {
     const virement = virements.find(v => v.dateLundi === dateLundi);
     const montantVirement = virement ? virement.montantVirement : null;
     const budgetEffectif = montantVirement !== null ? montantVirement : enveloppeHebdo;
-    const { disponible, reste } = C.soldeSemaine({ budgetSemaine: budgetEffectif, reportPrecedent, depense });
+    // Une fois le virement fait, l'argent est considere comme depense pour son usage (ex. Boursorama
+    // non suivi au jour le jour) meme si rien n'est saisi ensuite : on ne le compte pas deux fois
+    // en le reportant sur la semaine suivante.
+    const depenseEffective = virement ? Math.max(depense, montantVirement) : depense;
+    const { disponible, reste } = C.soldeSemaine({ budgetSemaine: budgetEffectif, reportPrecedent, depense: depenseEffective });
     // Pas encore vire : le montant suggere tient compte des saisies deja faites cette semaine
     // (se reajuste tout seul) et ne depasse jamais ce que le decouvert autorise permet.
     const suggestionTheorique = virement ? montantVirement : Math.max(0, reste);
