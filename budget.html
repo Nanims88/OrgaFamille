@@ -10,6 +10,20 @@
 <link rel="apple-touch-icon" href="assets/icon.svg">
 <link rel="stylesheet" href="assets/style.css?v=8">
 <style>
+  /* ---------- Bloc mois figé au scroll (reste visible sous l'en-tête) ---------- */
+  #budget-mois-bloc {
+    position: sticky;
+    /* leger chevauchement avec le bas de l'entete : son fond degrade vers transparent
+       laisserait sinon apparaitre un filet de contenu entre les deux blocs figes */
+    top: calc(var(--hauteur-entete, 64px) - 10px);
+    z-index: 9;
+    background: var(--bg);
+    padding: 18px 0 10px;
+    margin: 0;
+  }
+  #budget-mois-bloc .section-titre { margin: 0 0 10px; }
+  #budget-mois-bloc .semaine-nav { margin-bottom: 0; }
+
   #zone-charges-fixes.grille-cartes {
     gap: 8px;
   }
@@ -117,11 +131,13 @@
   </nav>
   <main>
 
-    <h2 class="section-titre" style="margin-top:8px;">Résumé du mois</h2>
-    <div class="semaine-nav" style="justify-content:center;">
-      <button class="btn" onclick="deplacerMoisBudget(-1)">◀</button>
-      <button class="btn" id="budget-mois-label" onclick="allerMoisActuelBudget()">Ce mois</button>
-      <button class="btn" onclick="deplacerMoisBudget(1)">▶</button>
+    <div id="budget-mois-bloc">
+      <h2 class="section-titre">Résumé du mois</h2>
+      <div class="semaine-nav" style="justify-content:center;">
+        <button class="btn" onclick="deplacerMoisBudget(-1)">◀</button>
+        <button class="btn" id="budget-mois-label" onclick="allerMoisActuelBudget()">Ce mois</button>
+        <button class="btn" onclick="deplacerMoisBudget(1)">▶</button>
+      </div>
     </div>
 
     <div class="carte" id="zone-solde-compte" style="margin-top:12px;">
@@ -269,6 +285,16 @@
 <script src="assets/app.js?v=8"></script>
 <script>
 document.getElementById('date-jour').textContent = formatDateLongue(dateAujourdhui());
+
+// L'en-tête est sticky et sa hauteur varie (passage a 2 lignes sur petit ecran) : on la
+// mesure reellement pour que le bloc mois reste colle juste en-dessous, sans le chevaucher.
+function ajusterHauteurEntete() {
+  const entete = document.querySelector('header.entete');
+  if (entete) document.documentElement.style.setProperty('--hauteur-entete', entete.offsetHeight + 'px');
+}
+window.addEventListener('resize', ajusterHauteurEntete);
+window.addEventListener('load', ajusterHauteurEntete);
+ajusterHauteurEntete();
 
 // ---------- Volets repliables (charges fixes, salaires, carburant, depenses variables, detail du resume) ----------
 const _sectionsOuvertes = {};
@@ -1134,6 +1160,7 @@ async function chargerVueAnnuelle() {
 }
 
 async function initPage() {
+  ajusterHauteurEntete(); // l'en-tete n'a de vraie hauteur qu'une fois #app affiche
   await chargerSalaires();
   const membres = await getMembres();
   document.getElementById('dv-membre').innerHTML = _adultes.map(m => `<option value="${m.id}">${m.icone} ${m.nom}</option>`).join('');
