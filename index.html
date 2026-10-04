@@ -397,7 +397,9 @@ async function chargerMois() {
     const horsMois = d.getMonth() !== mois;
     const estAujourdhui = ds === dateAujourdhui();
     const estVacances = evtsJour.some(e => !e.membre_id && e.mode === 'remplace');
-    const MAX_AFFICHES = 3;
+    // Assez pour toujours montrer les 4 membres de la famille meme s'ils ont chacun
+    // quelque chose le meme jour, plus une marge pour un evenement partage/activite.
+    const MAX_AFFICHES = 6;
 
     const chipsEvt = evtsJour.map(e => {
       const m = membresParId[e.membre_id];
