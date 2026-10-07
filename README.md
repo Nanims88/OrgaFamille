@@ -8,13 +8,13 @@ Aucune installation ni build n'est nécessaire : l'app est un ensemble de pages 
 
 | Fichier | Rôle |
 |---|---|
-| `index.html` | Page d'accueil « Aujourd'hui ». Vue **Jour** (une colonne par membre : tâches, planning, événements), vue **Semaine** et vue **Mois** (grille avec pastilles d'événements/activités/travaux). |
-| `menage.html` | Gestion des **tâches ménagères** : création, fréquence (quotidien, hebdo, mensuel, ponctuel), attribution à un membre, historique des tâches faites/à faire, exceptions ponctuelles. |
-| `agenda.html` | **Semaine type** (planning récurrent par jour/membre) et **événements** ponctuels (sorties, rendez-vous, vacances qui remplacent le planning habituel). |
+| `index.html` | Page d'accueil « Aujourd'hui ». Vue **Jour** (une colonne par membre : tâches à cocher, planning, événements), vue **Semaine** et vue **Mois** (grille avec pastilles d'événements/activités/travaux). Alerte automatique si une checklist en cours n'est pas terminée. |
+| `menage.html` | Gestion des **tâches ménagères** : création, fréquence (quotidien, hebdo, mensuel, ponctuel), attribution à un membre, historique des tâches faites/à faire, exceptions ponctuelles, archives (terminées/supprimées, restaurables). |
+| `agenda.html` | **Événements** ponctuels (sorties, rendez-vous, vacances qui remplacent ou complètent le planning habituel) et **semaine type** (planning récurrent par jour/membre). |
 | `activites.html` | **Idées de sorties/activités** à programmer, avec statut (idée → planifiée) et date prévue. |
-| `checklists.html` | **Modèles de checklists** réutilisables (ex. valise, courses) et leurs **instances en cours**, avec suivi des items cochés. |
+| `checklists.html` | **Modèles de checklists** réutilisables (ex. valise, courses) et leurs **instances en cours**, avec ajout, modification et suivi des items cochés. |
 | `baptiste.html` | Espace enfant dédié (Baptiste) : liste de ses tâches du jour à cocher, scores (⭐ jour/semaine/mois) et animation de confettis en récompense. |
-| `budget.html` | Suivi du **budget familial** : charges fixes, charges enfants (cantine, garderie…), carburant, salaires/répartition, dépenses variables du mois. |
+| `budget.html` | Suivi du **budget familial** : solde du compte commun (modifiable, suggéré automatiquement d'un mois sur l'autre), charges fixes, charges enfants (cantine, garderie…), carburant, salaires/répartition, dépenses variables du mois, et une **vue annuelle** (graphique d'évolution des dépenses par poste, mois par mois). |
 | `parametres.html` | Gestion des **membres de la famille** (nom, icône, couleur, ordre d'affichage). |
 
 Toutes les pages partagent la même en-tête, la même navigation (`nav.modules`) et le même portail d'authentification par mot de passe.
@@ -40,7 +40,7 @@ Pour changer le mot de passe, voir les instructions en commentaire dans `assets/
 | Table | Utilisée par | Contenu |
 |---|---|---|
 | `membres` | toutes les pages | Membres de la famille (nom, icône, couleur, ordre) |
-| `taches_menage` | `index.html`, `menage.html`, `baptiste.html` | Tâches ménagères (libellé, icône, fréquence, membre assigné) |
+| `taches_menage` | `index.html`, `menage.html`, `baptiste.html` | Tâches ménagères (libellé, icône, fréquence, membre assigné). Les tâches **ponctuelles** (travaux / à penser) sont clôturées définitivement (`actif=false`) dès qu'on les coche, où que ce soit dans l'app — elles ne reviennent pas le lendemain, contrairement aux tâches récurrentes (quotidien/hebdo/mensuel) qui se recochent chaque période. |
 | `taches_menage_log` | `index.html`, `baptiste.html` | Historique quotidien des tâches faites/non faites |
 | `taches_menage_exceptions` | `index.html`, `baptiste.html` | Exceptions ponctuelles (tâche non due un jour donné) |
 | `planning_recurrent` | `index.html`, `agenda.html` | Semaine type récurrente par membre |
