@@ -10,22 +10,23 @@ Aucune installation ni build n'est nécessaire : l'app est un ensemble de pages 
 |---|---|
 | `index.html` | Page d'accueil « Aujourd'hui ». Vue **Jour** (une colonne par membre : tâches à cocher, planning, événements), vue **Semaine** et vue **Mois** (grille avec pastilles d'événements/activités/travaux). Alerte automatique si une checklist en cours n'est pas terminée. |
 | `menage.html` | Gestion des **tâches ménagères** : création, fréquence (quotidien, hebdo, mensuel, ponctuel), attribution à un membre, historique des tâches faites/à faire, exceptions ponctuelles, archives (terminées/supprimées, restaurables). |
-| `agenda.html` | **Événements** ponctuels (sorties, rendez-vous, vacances qui remplacent ou complètent le planning habituel) et **semaine type** (planning récurrent par jour/membre). |
+| `agenda.html` | **Événements** ponctuels (sorties, rendez-vous, vacances qui remplacent ou complètent le planning habituel, avec couleur personnalisable) et **semaine type** (planning récurrent par jour/membre). Numéro de semaine ISO affiché sur les vues Semaine et Mois. |
 | `activites.html` | **Idées de sorties/activités** à programmer, avec statut (idée → planifiée) et date prévue. |
 | `checklists.html` | **Modèles de checklists** réutilisables (ex. valise, courses) et leurs **instances en cours**, avec ajout, modification et suivi des items cochés. |
-| `baptiste.html` | Espace enfant dédié (Baptiste) : liste de ses tâches du jour à cocher, scores (⭐ jour/semaine/mois) et animation de confettis en récompense. |
-| `budget.html` | Suivi du **budget familial** : solde du compte commun (modifiable, suggéré automatiquement d'un mois sur l'autre), charges fixes, charges enfants (cantine, garderie…), carburant, salaires/répartition, dépenses variables du mois, et une **vue annuelle** (graphique d'évolution des dépenses par poste, mois par mois). |
+| `baptiste.html` | Espace enfant dédié (Baptiste) : liste de ses tâches du jour à cocher, défi/énigme du jour (avec révélation de la réponse pour les parents), scores (⭐ jour/semaine/mois) et animation de confettis en récompense. |
+| `budget.html` | Suivi du **budget familial** : résumé du mois (figé en haut de page au défilement) avec solde du compte commun (modifiable, suggéré automatiquement d'un mois sur l'autre), charges fixes, charges enfants (cantine, garderie…, détail repliable avec solde par enfant), carburant, salaires/répartition, dépenses variables du mois, et une **vue annuelle** (graphique d'évolution des dépenses par poste, mois par mois). |
 | `parametres.html` | Gestion des **membres de la famille** (nom, icône, couleur, ordre d'affichage). |
 
-Toutes les pages partagent la même en-tête, la même navigation (`nav.modules`) et le même portail d'authentification par mot de passe.
+Toutes les pages partagent la même en-tête, la même navigation (`nav.modules`) et le même portail de connexion.
 
 ## Architecture technique
 
 - **Front-end** : HTML + JavaScript vanilla (pas de framework), un seul fichier CSS partagé (`assets/style.css`).
 - **Backend** : [Supabase](https://supabase.com) (PostgreSQL + API auto-générée), consommé via le SDK JS `@supabase/supabase-js` chargé en CDN.
-- **`assets/config.js`** : configuration du client Supabase (URL du projet, clé publique `anon`) et hash SHA-256 du mot de passe famille.
-- **`assets/app.js`** : fonctions communes à toutes les pages (client Supabase, gestion du portail mot de passe, cache des membres, formatage des dates, navigation active).
+- **`assets/config.js`** : configuration du client Supabase (URL du projet, clé publique `anon`).
+- **`assets/app.js`** : fonctions communes à toutes les pages (client Supabase, portail de connexion, cache des membres, formatage des dates, navigation active).
 - Chaque page HTML contient son propre script embarqué avec la logique spécifique au module (requêtes Supabase, rendu du DOM).
+- **PWA installable** : `assets/manifest.json` + `sw.js` (service worker, enregistré dans `app.js`) permettent d'installer le site sur l'écran d'accueil.
 
 ### Authentification
 
@@ -57,6 +58,10 @@ Pour ajouter quelqu'un ou changer un mot de passe : Supabase > Authentication > 
 
 1. Cloner le dépôt.
 2. Ouvrir `index.html` dans un navigateur (ou servir le dossier avec un serveur statique, ex. `python3 -m http.server`).
-3. Entrer le mot de passe famille configuré dans `assets/config.js`.
+3. Se connecter avec un compte Supabase Auth existant (créé dans Supabase > Authentication > Users).
 
 Aucune dépendance à installer : Supabase JS et `canvas-confetti` sont chargés depuis un CDN.
+
+## Module séparé : Budget perso
+
+`budget-perso.html` est une application de suivi du budget **personnel**, 100 % locale (IndexedDB, aucune donnée envoyée à Supabase ni ailleurs) et volontairement non reliée au reste du site. Voir [README-budget-perso.md](README-budget-perso.md) pour le détail.
