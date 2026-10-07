@@ -4,7 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Chez nous — Aujourd'hui</title>
-<link rel="stylesheet" href="assets/style.css?v=7">
+<link rel="manifest" href="assets/manifest.json">
+<meta name="theme-color" content="#D97757">
+<link rel="icon" href="assets/icon.svg">
+<link rel="apple-touch-icon" href="assets/icon.svg">
+<link rel="stylesheet" href="assets/style.css?v=8">
 <style>
   .alerte-checklist {
     border-left: 4px solid var(--maman);
@@ -19,9 +23,10 @@
 <div id="gate">
   <div class="carte">
     <h2 class="titre">🏡 Chez nous</h2>
-    <p>Mot de passe famille</p>
+    <p>Connexion famille</p>
     <form id="gate-form">
-      <input id="gate-input" type="password" placeholder="•••••••" autofocus>
+      <input id="gate-email" type="email" placeholder="Email" autocomplete="username" autofocus>
+      <input id="gate-input" type="password" placeholder="Mot de passe" autocomplete="current-password">
       <button type="submit">Entrer</button>
     </form>
     <p class="erreur" id="gate-erreur"></p>
@@ -66,7 +71,7 @@
     <div id="vue-semaine">
       <div class="semaine-nav">
         <button class="btn" onclick="deplacerSemaine(-1)">◀</button>
-        <button class="btn" onclick="allerSemaineActuelle()">Cette semaine</button>
+        <button class="btn" id="semaine-titre" onclick="allerSemaineActuelle()">Cette semaine</button>
         <button class="btn" onclick="deplacerSemaine(1)">▶</button>
       </div>
       <div class="semaine-grid" id="semaine-grid"></div>
@@ -86,8 +91,8 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="assets/config.js?v=7"></script>
-<script src="assets/app.js?v=7"></script>
+<script src="assets/config.js?v=8"></script>
+<script src="assets/app.js?v=8"></script>
 <script>
 document.getElementById('date-jour').textContent = formatDateLongue(dateAujourdhui());
 
@@ -259,6 +264,13 @@ function lundiDeLaSemaine(date) {
   d.setHours(0,0,0,0);
   return d;
 }
+function numeroSemaineISO(date) {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const jourISO = d.getUTCDay() || 7; // lundi=1 ... dimanche=7
+  d.setUTCDate(d.getUTCDate() + 4 - jourISO); // jeudi de cette semaine ISO determine l'annee de reference
+  const debutAnnee = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  return Math.ceil(((d - debutAnnee) / 86400000 + 1) / 7);
+}
 function deplacerSemaine(delta) { offsetSemaine += delta; chargerSemaine(); }
 function allerSemaineActuelle() { offsetSemaine = 0; chargerSemaine(); }
 async function terminerTravailSemaine(id) {
@@ -277,6 +289,8 @@ async function chargerSemaine() {
     return d;
   });
   const dateStrs = jours.map(d => formatDateLocale(d));
+  const numSemaine = numeroSemaineISO(lundi);
+  document.getElementById('semaine-titre').textContent = offsetSemaine === 0 ? `Cette semaine · S${numSemaine}` : `Semaine ${numSemaine}`;
 
   const bornInf = new Date(lundi.getTime() - 60 * 86400000).toISOString().slice(0, 10);
   const bornSup = new Date(lundi.getTime() + 66 * 86400000).toISOString().slice(0, 10);
@@ -373,9 +387,9 @@ async function chargerMois() {
   const membresParId = Object.fromEntries(membres.map(m => [m.id, m]));
 
   const noms = ['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
-  let html = noms.map(n => `<div class="mois-entete-jour">${n}</div>`).join('');
+  let html = '<div class="mois-entete-semaine"></div>' + noms.map(n => `<div class="mois-entete-jour">${n}</div>`).join('');
 
-  html += jours.map(d => {
+  const celluleJour = (d) => {
     const ds = formatDateLocale(d);
     const evtsJour = (evenementsRes.data || []).filter(e => evenementCouvre(e, ds));
     const activitesJour = (activitesRes.data || []).filter(a => a.date_prevue === ds);
@@ -383,11 +397,14 @@ async function chargerMois() {
     const horsMois = d.getMonth() !== mois;
     const estAujourdhui = ds === dateAujourdhui();
     const estVacances = evtsJour.some(e => !e.membre_id && e.mode === 'remplace');
-    const MAX_AFFICHES = 3;
+    // Assez pour toujours montrer les 4 membres de la famille meme s'ils ont chacun
+    // quelque chose le meme jour, plus une marge pour un evenement partage/activite.
+    const MAX_AFFICHES = 6;
 
     const chipsEvt = evtsJour.map(e => {
       const m = membresParId[e.membre_id];
-      return `<span class="mois-evt" style="background:${m ? m.couleur : 'var(--tous)'}" title="${e.titre}">${e.titre}</span>`;
+      const couleur = e.couleur || (m ? m.couleur : 'var(--tous)');
+      return `<span class="mois-evt" style="background:${couleur}" title="${e.titre}">${e.titre}</span>`;
     });
     const chipsAct = activitesJour.map(a => `<span class="mois-evt" style="background:var(--activite)" title="${a.titre}">🎒 ${a.titre}</span>`);
     const chipsTrav = travauxJour.map(t => `<span class="mois-evt" style="background:var(--travaux)" title="${t.libelle}">🧰 ${t.libelle}</span>`);
@@ -401,7 +418,14 @@ async function chargerMois() {
         ${reste > 0 ? `<div class="mois-evt-plus">+${reste}</div>` : ''}
       </div>
     `;
-  }).join('');
+  };
+
+  // Une ligne de la grille = une semaine ISO ; on prefixe chacune de son numero.
+  for (let i = 0; i < jours.length; i += 7) {
+    const semaine = jours.slice(i, i + 7);
+    html += `<div class="mois-numero-semaine">S${numeroSemaineISO(semaine[0])}</div>`;
+    html += semaine.map(celluleJour).join('');
+  }
 
   document.getElementById('mois-grid').innerHTML = html;
 }

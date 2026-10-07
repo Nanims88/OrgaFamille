@@ -1,0 +1,14 @@
+{
+  "name": "Chez nous",
+  "short_name": "Chez nous",
+  "description": "Organisation familiale : taches, agenda, activites, checklists, budget.",
+  "start_url": "../index.html",
+  "scope": "../",
+  "display": "standalone",
+  "background_color": "#F6F3ED",
+  "theme_color": "#D97757",
+  "lang": "fr",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

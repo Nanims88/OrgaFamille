@@ -4,7 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Chez nous — Agenda</title>
-<link rel="stylesheet" href="assets/style.css?v=7">
+<link rel="manifest" href="assets/manifest.json">
+<meta name="theme-color" content="#D97757">
+<link rel="icon" href="assets/icon.svg">
+<link rel="apple-touch-icon" href="assets/icon.svg">
+<link rel="stylesheet" href="assets/style.css?v=8">
 <style>
   #liste-evenements.grille-cartes {
     grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
@@ -39,9 +43,10 @@
 <div id="gate">
   <div class="carte">
     <h2 class="titre">🏡 Chez nous</h2>
-    <p>Mot de passe famille</p>
+    <p>Connexion famille</p>
     <form id="gate-form">
-      <input id="gate-input" type="password" placeholder="•••••••" autofocus>
+      <input id="gate-email" type="email" placeholder="Email" autocomplete="username" autofocus>
+      <input id="gate-input" type="password" placeholder="Mot de passe" autocomplete="current-password">
       <button type="submit">Entrer</button>
     </form>
     <p class="erreur" id="gate-erreur"></p>
@@ -84,8 +89,9 @@
         <input type="text" id="e-lieu" placeholder="Lieu">
         <select id="e-depose"><option value="">Dépose : —</option></select>
         <select id="e-recupere"><option value="">Récupère : —</option></select>
+        <label style="font-size:0.85rem;color:var(--ink-soft);display:inline-flex;align-items:center;gap:4px;">Couleur <input type="color" id="e-couleur" value="#9C7FBD"></label>
         <button class="btn" type="submit" id="e-submit">Ajouter</button>
-        <button class="btn" type="button" id="e-annuler" style="display:none;background:var(--ink-soft);" onclick="annulerEditionEvenement()">Annuler</button>
+        <button class="btn btn-discret" type="button" id="e-annuler" style="display:none;" onclick="annulerEditionEvenement()">Annuler</button>
       </form>
     </div>
 
@@ -110,7 +116,7 @@
         <input type="time" id="p-debut">
         <input type="time" id="p-fin">
         <button class="btn" type="submit" id="p-submit">Ajouter</button>
-        <button class="btn" type="button" id="p-annuler" style="display:none;background:var(--ink-soft);" onclick="annulerEditionPlanning()">Annuler</button>
+        <button class="btn btn-discret" type="button" id="p-annuler" style="display:none;" onclick="annulerEditionPlanning()">Annuler</button>
       </form>
     </div>
 
@@ -118,19 +124,26 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="assets/config.js?v=7"></script>
-<script src="assets/app.js?v=7"></script>
+<script src="assets/config.js?v=8"></script>
+<script src="assets/app.js?v=8"></script>
 <script>
 document.getElementById('date-jour').textContent = formatDateLongue(dateAujourdhui());
 
 async function remplirSelectsMembres() {
   const membres = await getMembres();
+  _membresParId = Object.fromEntries(membres.map(m => [m.id, m]));
   const options = membres.map(m => `<option value="${m.id}">${m.icone} ${m.nom}</option>`).join('');
   document.getElementById('e-membre').innerHTML += options;
   document.getElementById('e-depose').innerHTML += options;
   document.getElementById('e-recupere').innerHTML += options;
   document.getElementById('p-membre').innerHTML = options;
 }
+
+let _membresParId = {};
+document.getElementById('e-membre').addEventListener('change', (e) => {
+  const m = _membresParId[e.target.value];
+  document.getElementById('e-couleur').value = m ? m.couleur : '#9C7FBD';
+});
 
 async function chargerEvenements() {
   const auj = dateAujourdhui();
@@ -150,8 +163,9 @@ async function chargerEvenements() {
     const estPeriode = e.date_fin && e.date_fin.slice(0, 10) !== e.date_debut.slice(0, 10);
     const depose = membresParId[e.qui_depose];
     const recupere = membresParId[e.qui_recupere];
+    const couleur = e.couleur || (m ? m.couleur : 'var(--tous)');
     return `
-      <div class="carte" style="border-left:4px solid ${m ? m.couleur : 'var(--tous)'}">
+      <div class="carte" style="border-left:4px solid ${couleur}">
         <strong>${e.titre}</strong><br>
         <span style="color:var(--ink-soft);font-size:0.9rem;">
           ${estPeriode
@@ -165,8 +179,8 @@ async function chargerEvenements() {
         </div>
         ${depose || recupere ? `<div style="margin-top:6px;font-size:0.85rem;color:var(--ink-soft);">🚗 ${depose ? 'Dépose : ' + depose.nom : ''} ${recupere ? '· Récupère : ' + recupere.nom : ''}</div>` : ''}
         <div style="margin-top:10px;display:flex;gap:6px;">
-          <button class="btn" style="background:var(--paper);color:var(--ink);box-shadow:var(--shadow-1);" onclick="modifierEvenement('${e.id}')">✏️ Modifier</button>
-          <button class="btn" style="background:var(--ink-soft);" onclick="supprimerEvenement('${e.id}')">Supprimer</button>
+          <button class="btn btn-clair" onclick="modifierEvenement('${e.id}')">✏️ Modifier</button>
+          <button class="btn btn-discret" onclick="supprimerEvenement('${e.id}')">Supprimer</button>
         </div>
       </div>
     `;
@@ -186,6 +200,8 @@ function modifierEvenement(id) {
   document.getElementById('e-lieu').value = e.lieu || '';
   document.getElementById('e-depose').value = e.qui_depose || '';
   document.getElementById('e-recupere').value = e.qui_recupere || '';
+  const m = _membresParId[e.membre_id];
+  document.getElementById('e-couleur').value = e.couleur || (m ? m.couleur : '#9C7FBD');
   document.getElementById('e-submit').textContent = 'Enregistrer les modifications';
   document.getElementById('e-annuler').style.display = 'inline-block';
   document.getElementById('form-evenement').scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -194,6 +210,7 @@ function modifierEvenement(id) {
 function annulerEditionEvenement() {
   document.getElementById('form-evenement').reset();
   document.getElementById('e-id').value = '';
+  document.getElementById('e-couleur').value = '#9C7FBD';
   document.getElementById('e-submit').textContent = 'Ajouter';
   document.getElementById('e-annuler').style.display = 'none';
 }
@@ -220,7 +237,8 @@ document.getElementById('form-evenement').addEventListener('submit', async (e) =
     date_fin: dateFin ? `${dateFin}T23:59:59` : null,
     lieu: document.getElementById('e-lieu').value || null,
     qui_depose: document.getElementById('e-depose').value || null,
-    qui_recupere: document.getElementById('e-recupere').value || null
+    qui_recupere: document.getElementById('e-recupere').value || null,
+    couleur: document.getElementById('e-couleur').value || null
   };
   if (id) {
     await sb.from('evenements').update(payload).eq('id', id);

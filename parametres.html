@@ -4,16 +4,21 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Chez nous — Réglages</title>
-<link rel="stylesheet" href="assets/style.css?v=7">
+<link rel="manifest" href="assets/manifest.json">
+<meta name="theme-color" content="#D97757">
+<link rel="icon" href="assets/icon.svg">
+<link rel="apple-touch-icon" href="assets/icon.svg">
+<link rel="stylesheet" href="assets/style.css?v=8">
 </head>
 <body>
 
 <div id="gate">
   <div class="carte">
     <h2 class="titre">🏡 Chez nous</h2>
-    <p>Mot de passe famille</p>
+    <p>Connexion famille</p>
     <form id="gate-form">
-      <input id="gate-input" type="password" placeholder="•••••••" autofocus>
+      <input id="gate-email" type="email" placeholder="Email" autocomplete="username" autofocus>
+      <input id="gate-input" type="password" placeholder="Mot de passe" autocomplete="current-password">
       <button type="submit">Entrer</button>
     </form>
     <p class="erreur" id="gate-erreur"></p>
@@ -58,8 +63,8 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="assets/config.js?v=7"></script>
-<script src="assets/app.js?v=7"></script>
+<script src="assets/config.js?v=8"></script>
+<script src="assets/app.js?v=8"></script>
 <script>
 document.getElementById('date-jour').textContent = formatDateLongue(dateAujourdhui());
 
@@ -71,7 +76,7 @@ async function chargerMembres() {
       <strong style="display:block;margin-top:10px;">${m.nom}</strong>
       <span style="color:var(--ink-soft);font-size:0.85rem;">${m.type}</span>
       <div style="margin-top:8px;">
-        <button class="btn" style="background:var(--ink-soft)" onclick="supprimerMembre('${m.id}')">Retirer</button>
+        <button class="btn btn-discret" onclick="supprimerMembre('${m.id}')">Retirer</button>
       </div>
     </div>
   `).join('');

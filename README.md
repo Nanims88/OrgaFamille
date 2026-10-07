@@ -29,11 +29,9 @@ Toutes les pages partagent la même en-tête, la même navigation (`nav.modules`
 
 ### Authentification
 
-L'accès est protégé par un **mot de passe familial unique** (pas de compte individuel) : la saisie est hashée en SHA-256 côté client et comparée à `FAMILLE_PASSWORD_HASH` dans `assets/config.js`. Une fois validé, l'accès est mémorisé pour la session via `sessionStorage`.
+L'accès est protégé par un **vrai compte Supabase Auth par personne** (email + mot de passe, via `sb.auth.signInWithPassword()`) — pas de hash local ni de mot de passe en clair dans le code. C'est cette session authentifiée qui satisfait les règles **Row Level Security (RLS)** activées sur toutes les tables : sans elle, l'API Supabase refuse toute lecture/écriture, même avec la clé `anon` (publique dans le code source).
 
-⚠️ Ce mécanisme est une protection légère contre les visiteurs occasionnels, pas une sécurité forte : le hash et la clé Supabase `anon` sont visibles dans le code source. La vraie protection des données doit venir des règles **Row Level Security (RLS)** configurées côté Supabase.
-
-Pour changer le mot de passe, voir les instructions en commentaire dans `assets/config.js`.
+Pour ajouter quelqu'un ou changer un mot de passe : Supabase > Authentication > Users.
 
 ## Modèle de données (tables Supabase)
 

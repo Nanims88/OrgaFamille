@@ -3,23 +3,26 @@ const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 const JOURS = ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"];
 
-// ---------- Portail mot de passe ----------
+// ---------- Portail de connexion ----------
+// Vrai compte Supabase Auth par personne (email + mot de passe) : c'est cette session
+// authentifiee qui permet aux regles RLS de bloquer l'acces anonyme.
 async function verifierMotDePasse() {
+  const email = document.getElementById('gate-email').value;
   const saisie = document.getElementById('gate-input').value;
-  const buffer = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(saisie));
-  const hash = [...new Uint8Array(buffer)].map(b => b.toString(16).padStart(2, '0')).join('');
-  if (hash === FAMILLE_PASSWORD_HASH) {
-    sessionStorage.setItem('famille_ok', '1');
+  const { error } = await sb.auth.signInWithPassword({ email, password: saisie });
+  if (!error) {
     document.getElementById('gate').style.display = 'none';
     document.getElementById('app').classList.add('pret');
     initPage();
   } else {
-    document.getElementById('gate-erreur').textContent = "Mot de passe incorrect, réessaie.";
+    console.error('Erreur de connexion Supabase :', error);
+    document.getElementById('gate-erreur').textContent = "Connexion refusée : " + error.message;
   }
 }
 
-function demarrerPortail() {
-  if (sessionStorage.getItem('famille_ok') === '1') {
+async function demarrerPortail() {
+  const { data: { session } } = await sb.auth.getSession();
+  if (session) {
     document.getElementById('gate').style.display = 'none';
     document.getElementById('app').classList.add('pret');
     initPage();
@@ -95,4 +98,5 @@ function lundiDeLaSemaine(date) {
 document.addEventListener('DOMContentLoaded', () => {
   marquerNavActive();
   demarrerPortail();
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
 });

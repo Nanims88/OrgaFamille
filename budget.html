@@ -4,8 +4,26 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Chez nous — Budget</title>
-<link rel="stylesheet" href="assets/style.css?v=7">
+<link rel="manifest" href="assets/manifest.json">
+<meta name="theme-color" content="#D97757">
+<link rel="icon" href="assets/icon.svg">
+<link rel="apple-touch-icon" href="assets/icon.svg">
+<link rel="stylesheet" href="assets/style.css?v=8">
 <style>
+  /* ---------- Bloc mois figé au scroll (reste visible sous l'en-tête) ---------- */
+  #budget-mois-bloc {
+    position: sticky;
+    /* leger chevauchement avec le bas de l'entete : son fond degrade vers transparent
+       laisserait sinon apparaitre un filet de contenu entre les deux blocs figes */
+    top: calc(var(--hauteur-entete, 64px) - 10px);
+    z-index: 9;
+    background: var(--bg);
+    padding: 18px 0 10px;
+    margin: 0;
+  }
+  #budget-mois-bloc .section-titre { margin: 0 0 10px; }
+  #budget-mois-bloc .semaine-nav { margin-bottom: 0; }
+
   #zone-charges-fixes.grille-cartes {
     gap: 8px;
   }
@@ -86,9 +104,10 @@
 <div id="gate">
   <div class="carte">
     <h2 class="titre">🏡 Chez nous</h2>
-    <p>Mot de passe famille</p>
+    <p>Connexion famille</p>
     <form id="gate-form">
-      <input id="gate-input" type="password" placeholder="•••••••" autofocus>
+      <input id="gate-email" type="email" placeholder="Email" autocomplete="username" autofocus>
+      <input id="gate-input" type="password" placeholder="Mot de passe" autocomplete="current-password">
       <button type="submit">Entrer</button>
     </form>
     <p class="erreur" id="gate-erreur"></p>
@@ -112,11 +131,13 @@
   </nav>
   <main>
 
-    <h2 class="section-titre" style="margin-top:8px;">Résumé du mois</h2>
-    <div class="semaine-nav" style="justify-content:center;">
-      <button class="btn" onclick="deplacerMoisBudget(-1)">◀</button>
-      <button class="btn" id="budget-mois-label" onclick="allerMoisActuelBudget()">Ce mois</button>
-      <button class="btn" onclick="deplacerMoisBudget(1)">▶</button>
+    <div id="budget-mois-bloc">
+      <h2 class="section-titre">Résumé du mois</h2>
+      <div class="semaine-nav" style="justify-content:center;">
+        <button class="btn" onclick="deplacerMoisBudget(-1)">◀</button>
+        <button class="btn" id="budget-mois-label" onclick="allerMoisActuelBudget()">Ce mois</button>
+        <button class="btn" onclick="deplacerMoisBudget(1)">▶</button>
+      </div>
     </div>
 
     <div class="carte" id="zone-solde-compte" style="margin-top:12px;">
@@ -162,50 +183,78 @@
           <option value="prorata">Au prorata du salaire</option>
           <option value="50-50">50 / 50</option>
         </select>
+        <select id="ce-impact">
+          <option value="ce-mois">Impacte ce mois</option>
+          <option value="mois-suivant">Impacte le mois suivant</option>
+        </select>
         <button class="btn" type="submit" id="ce-submit">Ajouter</button>
-        <button class="btn" type="button" id="ce-annuler" style="display:none;background:var(--ink-soft);" onclick="annulerEditionChargeEnfant()">Annuler</button>
+        <button class="btn btn-discret" type="button" id="ce-annuler" style="display:none;" onclick="annulerEditionChargeEnfant()">Annuler</button>
       </form>
+      <p style="color:var(--ink-soft);font-size:0.85rem;margin-top:8px;">"Impacte le mois suivant" : utile pour une charge connue trop tard (ex : prime crèche calculée en fin de mois). Le calcul reste identique (jours ouvrés × prix/jour) mais compte dans le total du mois d'après.</p>
     </div>
 
     <div class="carte" id="zone-resume-fixes" style="margin-top:16px;"></div>
-    <div class="grille-cartes" style="margin-top:16px;">
-      <div id="zone-resume-personnes" style="display:contents;"></div>
-      <div id="zone-charges-enfants-resume" style="display:contents;"></div>
+    <div class="grille-cartes" id="zone-resume-personnes" style="margin-top:16px;"></div>
+
+    <h2 class="section-titre" style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
+      <span>Charges fixes</span>
+      <button class="btn btn-clair" style="font-size:0.8rem;padding:6px 12px;" onclick="basculerSection('charges-fixes')" id="btn-section-charges-fixes">Afficher</button>
+    </h2>
+    <div id="section-charges-fixes" style="display:none;">
+      <p style="color:var(--ink-soft);font-size:0.9rem;margin-top:-6px;">Utilise un montant négatif pour une entrée d'argent (CAF, aides...) — elle viendra en déduction du total à répartir.</p>
+      <div class="carte">
+        <strong id="cf-titre-form">Ajouter une charge fixe</strong>
+        <form class="mini" id="form-charge-fixe">
+          <input type="hidden" id="cf-id">
+          <input type="text" id="cf-libelle" placeholder="Ex: Loyer, Assurance..." required>
+          <input type="number" step="0.01" id="cf-montant" placeholder="Montant €" required>
+          <select id="cf-repartition">
+            <option value="prorata">Au prorata du salaire</option>
+            <option value="50-50">50 / 50</option>
+          </select>
+          <button class="btn" type="submit" id="cf-submit">Ajouter</button>
+          <button class="btn btn-discret" type="button" id="cf-annuler" style="display:none;" onclick="annulerEditionChargeFixe()">Annuler</button>
+        </form>
+      </div>
+      <div class="grille-cartes" id="zone-charges-fixes" style="margin-top:12px;"></div>
     </div>
 
-    <h2 class="section-titre">Charges fixes</h2>
-    <p style="color:var(--ink-soft);font-size:0.9rem;margin-top:-6px;">Utilise un montant négatif pour une entrée d'argent (CAF, aides...) — elle viendra en déduction du total à répartir.</p>
-    <div class="carte">
-      <strong id="cf-titre-form">Ajouter une charge fixe</strong>
-      <form class="mini" id="form-charge-fixe">
-        <input type="hidden" id="cf-id">
-        <input type="text" id="cf-libelle" placeholder="Ex: Loyer, Assurance..." required>
-        <input type="number" step="0.01" id="cf-montant" placeholder="Montant €" required>
-        <select id="cf-repartition">
-          <option value="prorata">Au prorata du salaire</option>
-          <option value="50-50">50 / 50</option>
-        </select>
-        <button class="btn" type="submit" id="cf-submit">Ajouter</button>
-        <button class="btn" type="button" id="cf-annuler" style="display:none;background:var(--ink-soft);" onclick="annulerEditionChargeFixe()">Annuler</button>
-      </form>
+    <h2 class="section-titre" style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
+      <span>Charges enfants (cantine, garderie...)</span>
+      <button class="btn btn-clair" style="font-size:0.8rem;padding:6px 12px;" onclick="basculerSection('charges-enfants')" id="btn-section-charges-enfants">Afficher</button>
+    </h2>
+    <div id="section-charges-enfants" style="display:none;">
+      <div class="grille-cartes" id="zone-charges-enfants-resume"></div>
+      <p style="color:var(--ink-soft);font-size:0.9rem;margin:16px 0 -6px;">Jours ouvrés du mois calculés automatiquement (lundi-vendredi), ajustables si besoin (absences, jours en plus...).</p>
+      <div class="grille-cartes" id="zone-charges-enfants" style="margin-top:12px;"></div>
     </div>
-    <div class="grille-cartes" id="zone-charges-fixes" style="margin-top:12px;"></div>
 
-    <h2 class="section-titre">Charges enfants (cantine, garderie...) — détail</h2>
-    <p style="color:var(--ink-soft);font-size:0.9rem;margin-top:-6px;">Jours ouvrés du mois calculés automatiquement (lundi-vendredi), ajustables si besoin (absences, jours en plus...).</p>
-    <div class="grille-cartes" id="zone-charges-enfants"></div>
+    <h2 class="section-titre" style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
+      <span>Salaires & répartition</span>
+      <button class="btn btn-clair" style="font-size:0.8rem;padding:6px 12px;" onclick="basculerSection('salaires')" id="btn-section-salaires">Afficher</button>
+    </h2>
+    <div id="section-salaires" style="display:none;">
+      <p style="color:var(--ink-soft);font-size:0.9rem;margin-top:-6px;">Sert de base au calcul de la répartition "au prorata" sur les autres postes. Enregistré une fois, valable pour tous les mois jusqu'à modification.</p>
+      <div class="grille-cartes" id="zone-salaires"></div>
+    </div>
 
-    <h2 class="section-titre">Salaires & répartition</h2>
-    <p style="color:var(--ink-soft);font-size:0.9rem;margin-top:-6px;">Sert de base au calcul de la répartition "au prorata" sur les autres postes. Enregistré une fois, valable pour tous les mois jusqu'à modification.</p>
-    <div class="grille-cartes" id="zone-salaires"></div>
+    <h2 class="section-titre" style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
+      <span>Carburant</span>
+      <button class="btn btn-clair" style="font-size:0.8rem;padding:6px 12px;" onclick="basculerSection('carburant')" id="btn-section-carburant">Afficher</button>
+    </h2>
+    <div id="section-carburant" style="display:none;">
+      <p style="color:var(--ink-soft);font-size:0.9rem;margin-top:-6px;">Coût = distance aller × 2 × jours de travail × consommation ÷ 100 × prix du litre.</p>
+      <div class="grille-cartes" id="zone-transport"></div>
+    </div>
 
-    <h2 class="section-titre">Carburant</h2>
-    <p style="color:var(--ink-soft);font-size:0.9rem;margin-top:-6px;">Coût = distance aller × 2 × jours de travail × consommation ÷ 100 × prix du litre.</p>
-    <div class="grille-cartes" id="zone-transport"></div>
-
-    <h2 class="section-titre">Dépenses variables du mois — historique</h2>
-    <p style="color:var(--ink-soft);font-size:0.9rem;margin-top:-6px;">À titre informatif. Ces dépenses viennent en crédit/débit sur le montant à verser du <strong>mois suivant</strong>.</p>
-    <div class="grille-cartes" id="zone-depenses"></div>
+    <h2 class="section-titre" style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
+      <span>Dépenses variables du mois — historique</span>
+      <button class="btn btn-clair" style="font-size:0.8rem;padding:6px 12px;" onclick="basculerSection('depenses-variables')" id="btn-section-depenses-variables">Afficher</button>
+    </h2>
+    <div id="section-depenses-variables" style="display:none;">
+      <p style="color:var(--ink-soft);font-size:0.9rem;margin-top:-6px;">À titre informatif. Ces dépenses viennent en crédit/débit sur le montant à verser du <strong>mois suivant</strong>.</p>
+      <div class="grille-cartes" id="zone-depenses"></div>
+    </div>
 
     <h2 class="section-titre">Vue annuelle</h2>
     <p style="color:var(--ink-soft);font-size:0.9rem;margin-top:-6px;">Évolution des dépenses par poste, mois par mois.</p>
@@ -232,11 +281,33 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="assets/config.js?v=7"></script>
-<script src="assets/app.js?v=7"></script>
+<script src="assets/config.js?v=8"></script>
+<script src="assets/app.js?v=8"></script>
 <script>
 document.getElementById('date-jour').textContent = formatDateLongue(dateAujourdhui());
 
+// L'en-tête est sticky et sa hauteur varie (passage a 2 lignes sur petit ecran) : on la
+// mesure reellement pour que le bloc mois reste colle juste en-dessous, sans le chevaucher.
+function ajusterHauteurEntete() {
+  const entete = document.querySelector('header.entete');
+  if (entete) document.documentElement.style.setProperty('--hauteur-entete', entete.offsetHeight + 'px');
+}
+window.addEventListener('resize', ajusterHauteurEntete);
+window.addEventListener('load', ajusterHauteurEntete);
+ajusterHauteurEntete();
+
+// ---------- Volets repliables (charges fixes, salaires, carburant, depenses variables, detail du resume) ----------
+const _sectionsOuvertes = {};
+function basculerSection(nom) {
+  _sectionsOuvertes[nom] = !_sectionsOuvertes[nom];
+  document.getElementById('section-' + nom).style.display = _sectionsOuvertes[nom] ? 'block' : 'none';
+  const declencheur = document.getElementById('btn-section-' + nom);
+  if (declencheur) {
+    declencheur.textContent = _sectionsOuvertes[nom]
+      ? (declencheur.dataset.ouvert || 'Masquer')
+      : (declencheur.dataset.ferme || 'Afficher');
+  }
+}
 
 let _adultes = [];       // les deux membres "adulte"
 let _salaires = {};      // membre_id -> salaire
@@ -320,14 +391,6 @@ function tauxRepartitionAvec(repartition, membreId, pourcentages) {
 }
 function tauxRepartition(repartition, membreId) {
   return tauxRepartitionAvec(repartition, membreId, _pourcentages);
-}
-
-function calculerPourcentages() {
-  const total = _adultes.reduce((s, m) => s + (_salaires[m.id] || 0), 0);
-  _pourcentages = {};
-  _adultes.forEach(m => {
-    _pourcentages[m.id] = total > 0 ? (_salaires[m.id] || 0) / total : 1 / _adultes.length;
-  });
 }
 
 // ---------- Salaires (figés par mois) ----------
@@ -458,8 +521,8 @@ async function chargerChargesFixes() {
       <span class="badge-membre" style="background:var(--ink-soft);margin-left:6px;">${labelRepartition(c.repartition)}</span>
       ${info.suggestion ? '<p style="margin-top:6px;color:var(--ink-soft);font-size:0.78rem;font-style:italic;">Non figé pour ce mois — valeur reprise du dernier mois connu.</p>' : ''}
       <div style="margin-top:10px;display:flex;gap:6px;">
-        <button class="btn" style="background:var(--paper);color:var(--ink);box-shadow:var(--shadow-1);" onclick="modifierChargeFixe('${c.id}')">✏️ Modifier ce mois</button>
-        <button class="btn" style="background:var(--ink-soft)" onclick="supprimerChargeFixe('${c.id}')">Supprimer</button>
+        <button class="btn btn-clair" onclick="modifierChargeFixe('${c.id}')">✏️ Modifier ce mois</button>
+        <button class="btn btn-discret" onclick="supprimerChargeFixe('${c.id}')">Supprimer</button>
       </div>
     </div>
   `;
@@ -570,18 +633,24 @@ async function chargerChargesEnfants() {
     const enfant = enfantsParId[c.enfant_id];
     return `
       <div class="carte" ${enfant ? `style="border-left:4px solid ${enfant.couleur}"` : ''}>
-        <strong>${c.libelle}</strong> ${enfant ? badgeMembre(enfant) : ''}<br>
-        <span style="color:var(--ink-soft);font-size:0.85rem;">${c.prix_jour.toFixed(2)} € / jour</span>
-        <p style="margin:8px 0 2px;font-size:0.85rem;color:var(--ink-soft);">Jours ouvrés ce mois : ${joursBase}</p>
-        <label style="font-size:0.85rem;">Ajustement (+/-) :
-          <input type="number" step="1" value="${c._ajustement}" style="width:60px;" onchange="ajusterJoursChargeEnfant('${c.id}', '${mois}', this.value)">
-        </label>
-        <p style="margin:6px 0;font-size:0.85rem;color:var(--ink-soft);">Jours retenus : <strong>${c._joursRetenus}</strong></p>
-        <span style="font-size:1.2rem;font-weight:800;color:${c._cout < 0 ? 'var(--louis)' : 'var(--ink)'}">${c._cout.toFixed(2)} €</span>
-        <span class="badge-membre" style="background:var(--ink-soft);margin-left:6px;">${labelRepartition(c.repartition)}</span>
-        <div style="margin-top:10px;display:flex;gap:6px;">
-          <button class="btn" style="background:var(--paper);color:var(--ink);box-shadow:var(--shadow-1);" onclick="modifierChargeEnfant('${c.id}')">✏️ Modifier</button>
-          <button class="btn" style="background:var(--ink-soft)" onclick="supprimerChargeEnfant('${c.id}')">Supprimer</button>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+          <strong>${c.libelle}</strong>
+          ${enfant ? badgeMembre(enfant) : ''}
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:6px;flex-wrap:wrap;">
+          <span style="color:var(--ink-soft);font-size:0.85rem;">${c.prix_jour.toFixed(2)} €/j · ${joursBase} j ouvrés → <strong>${c._joursRetenus}</strong> retenus</span>
+          <label style="font-size:0.85rem;color:var(--ink-soft);white-space:nowrap;">Ajust. <input type="number" step="1" value="${c._ajustement}" style="width:44px;" onchange="ajusterJoursChargeEnfant('${c.id}', '${mois}', this.value)"></label>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:8px;flex-wrap:wrap;">
+          <div style="display:flex;gap:6px;flex-wrap:wrap;">
+            <span class="badge-membre" style="background:var(--ink-soft);">${labelRepartition(c.repartition)}</span>
+            ${c.impact_mois_suivant ? '<span class="badge-membre" style="background:var(--ink);">→ Mois suivant</span>' : ''}
+          </div>
+          <span style="font-size:1.15rem;font-weight:800;color:${c._cout < 0 ? 'var(--louis)' : 'var(--ink)'}">${c._cout.toFixed(2)} €</span>
+        </div>
+        <div style="margin-top:8px;display:flex;justify-content:flex-end;gap:2px;">
+          <button class="btn btn-icone" onclick="modifierChargeEnfant('${c.id}')" title="Modifier">✏️</button>
+          <button class="btn btn-icone" onclick="supprimerChargeEnfant('${c.id}')" title="Supprimer">🗑️</button>
         </div>
       </div>
     `;
@@ -602,6 +671,7 @@ function modifierChargeEnfant(id) {
   document.getElementById('ce-enfant').value = c.enfant_id || '';
   document.getElementById('ce-prix').value = c.prix_jour;
   document.getElementById('ce-repartition').value = c.repartition;
+  document.getElementById('ce-impact').value = c.impact_mois_suivant ? 'mois-suivant' : 'ce-mois';
   document.getElementById('ce-titre-form').textContent = 'Modifier cette charge fixe enfant';
   document.getElementById('ce-submit').textContent = 'Enregistrer';
   document.getElementById('ce-annuler').style.display = 'inline-block';
@@ -609,6 +679,7 @@ function modifierChargeEnfant(id) {
 function annulerEditionChargeEnfant() {
   document.getElementById('form-charge-enfant').reset();
   document.getElementById('ce-id').value = '';
+  document.getElementById('ce-impact').value = 'ce-mois';
   document.getElementById('ce-titre-form').textContent = 'Ajouter une charge fixe enfant';
   document.getElementById('ce-submit').textContent = 'Ajouter';
   document.getElementById('ce-annuler').style.display = 'none';
@@ -626,7 +697,8 @@ document.getElementById('form-charge-enfant').addEventListener('submit', async (
     libelle: document.getElementById('ce-libelle').value,
     enfant_id: document.getElementById('ce-enfant').value || null,
     prix_jour: parseFloat(document.getElementById('ce-prix').value) || 0,
-    repartition: document.getElementById('ce-repartition').value
+    repartition: document.getElementById('ce-repartition').value,
+    impact_mois_suivant: document.getElementById('ce-impact').value === 'mois-suivant'
   };
   if (id) await sb.from('budget_charges_enfants').update(payload).eq('id', id);
   else await sb.from('budget_charges_enfants').insert(payload);
@@ -644,7 +716,7 @@ function preremplirRepartitionDepense() {
 async function chargerDepenses() {
   const mois = moisAAAAMM(moisConsulte());
   const { data } = await sb.from('budget_depenses_variables').select('*')
-    .gte('date', mois + '-01').lt('date', moisSuivantStr(mois)).order('date', { ascending: false });
+    .gte('date', mois + '-01').lt('date', moisSuivantStr(mois)).order('date', { ascending: false }).order('cree_le', { ascending: false });
   const membresParId = Object.fromEntries(_adultes.map(m => [m.id, m]));
   const enfantsParId = Object.fromEntries(_enfants.map(e => [e.id, e]));
 
@@ -654,7 +726,7 @@ async function chargerDepenses() {
       <span style="color:var(--ink-soft);font-size:0.85rem;">${d.categorie} · ${new Date(d.date).toLocaleDateString('fr-FR')} · ${labelRepartition(d.repartition)}</span>
       <div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap;">${badgeMembre(membresParId[d.membre_id])} ${d.enfant_id && enfantsParId[d.enfant_id] ? badgeMembre(enfantsParId[d.enfant_id]) : ''}</div>
       <div style="margin-top:8px;">
-        <button class="btn" style="background:var(--ink-soft)" onclick="supprimerDepense('${d.id}')">Supprimer</button>
+        <button class="btn btn-discret" onclick="supprimerDepense('${d.id}')">Supprimer</button>
       </div>
     </div>
   `).join('') || '<div class="vide">Aucune dépense saisie ce mois-ci.</div>';
@@ -703,10 +775,12 @@ function premierJourDuMois(mois) {
 async function calculerFluxMois(mois) {
   const moisPrec = moisPrecedentStr(mois);
   const joursBase = joursOuvresDuMois(premierJourDuMois(mois));
+  const joursBasePrec = joursOuvresDuMois(premierJourDuMois(moisPrec));
 
-  const [transportRes, ajustEnfantsRes, montantsChargesFixes, { pourcentages }, depensesPrecRes, { pourcentages: pourcentagesPrec }] = await Promise.all([
+  const [transportRes, ajustEnfantsRes, ajustEnfantsPrecRes, montantsChargesFixes, { pourcentages }, depensesPrecRes, { pourcentages: pourcentagesPrec }] = await Promise.all([
     sb.from('budget_transport').select('*'),
     sb.from('budget_charges_enfants_ajustement').select('*').eq('mois', mois),
+    sb.from('budget_charges_enfants_ajustement').select('*').eq('mois', moisPrec),
     resoudreMontantsChargesFixes(mois),
     resoudreSalairesEtPourcentages(mois),
     // Dépenses variables DU MOIS PRÉCÉDENT — c'est ce qui vient créditer/débiter le versement de ce mois-ci
@@ -716,13 +790,18 @@ async function calculerFluxMois(mois) {
 
   const transportParId = Object.fromEntries((transportRes.data || []).map(t => [t.membre_id, t]));
   const ajustEnfantsParId = Object.fromEntries((ajustEnfantsRes.data || []).map(a => [a.charge_id, a.ajustement_jours]));
+  const ajustEnfantsPrecParId = Object.fromEntries((ajustEnfantsPrecRes.data || []).map(a => [a.charge_id, a.ajustement_jours]));
   const depensesPrec = depensesPrecRes.data || [];
 
   // ---- Pot du mois consulté : charges fixes + charges enfants + carburant ----
   const postes = [];
   _chargesFixesCache.forEach(c => postes.push({ montant: montantsChargesFixes[c.id].montant, repartition: c.repartition }));
   _chargesEnfantsCache.forEach(c => {
-    const joursRetenus = Math.max(0, joursBase + (ajustEnfantsParId[c.id] || 0));
+    // "Impacte le mois suivant" : decouverte trop tard pour peser sur son propre mois (ex: prime creche
+    // connue en fin de mois), on reprend alors les jours/ajustement du mois precedent pour peser ici.
+    const joursRetenus = c.impact_mois_suivant
+      ? Math.max(0, joursBasePrec + (ajustEnfantsPrecParId[c.id] || 0))
+      : Math.max(0, joursBase + (ajustEnfantsParId[c.id] || 0));
     postes.push({ montant: joursRetenus * c.prix_jour, repartition: c.repartition });
   });
   _adultes.forEach(m => {
@@ -818,11 +897,16 @@ async function chargerResume() {
   const resteAPrelever = _chargesFixesCache.reduce((s, c) => s + (statutParCharge[c.id] ? 0 : _montantsChargesFixes[c.id].montant), 0);
 
   document.getElementById('zone-resume-total').innerHTML = `
-    <p><strong>Solde du compte commun en début de mois :</strong> ${_soldeDebutMoisCourant.toFixed(2)} €</p>
-    <p><strong>Charges du mois (fixes + carburant + enfants) :</strong> ${totalMois.toFixed(2)} €</p>
-    <p style="margin-top:2px;color:var(--ink-soft);font-size:0.85rem;">Dépenses variables saisies en ${new Date(moisPrec + '-01').toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })} (créditées ce mois-ci) : ${totalDepensesPrec.toFixed(2)} €</p>
-    <p style="margin-top:4px;"><strong>Reste à prélever sur le compte</strong> (charges fixes non encore pointées) : <span style="font-weight:800;">${resteAPrelever.toFixed(2)} €</span></p>
-    <p style="margin-top:8px;"><strong>Solde prévisionnel en fin de mois</strong> (avec les ${totalAVerser.toFixed(2)} € à verser par chacun) : <span style="font-weight:800;color:${soldeFinMois >= 0 ? 'var(--ink)' : 'var(--louis)'}">${soldeFinMois.toFixed(2)} €</span></p>
+    <p><strong>Reste à prélever sur le compte</strong> (charges fixes non encore pointées) : <span style="font-weight:800;">${resteAPrelever.toFixed(2)} €</span></p>
+    <p style="margin-top:6px;"><strong>Solde prévisionnel en fin de mois</strong> (avec les ${totalAVerser.toFixed(2)} € à verser par chacun) : <span style="font-weight:800;color:${soldeFinMois >= 0 ? 'var(--ink)' : 'var(--louis)'}">${soldeFinMois.toFixed(2)} €</span></p>
+    <p style="margin-top:8px;">
+      <a href="#" onclick="basculerSection('detail-resume');return false;" id="btn-section-detail-resume" data-ouvert="Masquer le détail du calcul" data-ferme="Voir le détail du calcul" style="font-size:0.82rem;color:var(--ink-soft);">Voir le détail du calcul</a>
+    </p>
+    <div id="section-detail-resume" style="display:none;margin-top:4px;">
+      <p><strong>Solde du compte commun en début de mois :</strong> ${_soldeDebutMoisCourant.toFixed(2)} €</p>
+      <p><strong>Charges du mois (fixes + carburant + enfants) :</strong> ${totalMois.toFixed(2)} €</p>
+      <p style="margin-top:2px;color:var(--ink-soft);font-size:0.85rem;">Dépenses variables saisies en ${new Date(moisPrec + '-01').toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })} (créditées ce mois-ci) : ${totalDepensesPrec.toFixed(2)} €</p>
+    </div>
   `;
 
   document.getElementById('zone-resume-fixes').innerHTML = `
@@ -870,9 +954,12 @@ const NOMS_MOIS_LONG = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', '
 
 async function calculerPostesMois(mois) {
   const joursBase = joursOuvresDuMois(premierJourDuMois(mois));
-  const [montantsChargesFixes, ajustEnfantsRes, transportRes, depVarRes] = await Promise.all([
+  const moisPrec = moisPrecedentStr(mois);
+  const joursBasePrec = joursOuvresDuMois(premierJourDuMois(moisPrec));
+  const [montantsChargesFixes, ajustEnfantsRes, ajustEnfantsPrecRes, transportRes, depVarRes] = await Promise.all([
     resoudreMontantsChargesFixes(mois),
     sb.from('budget_charges_enfants_ajustement').select('*').eq('mois', mois),
+    sb.from('budget_charges_enfants_ajustement').select('*').eq('mois', moisPrec),
     sb.from('budget_transport').select('*'),
     sb.from('budget_depenses_variables').select('montant').gte('date', mois + '-01').lt('date', moisSuivantStr(mois))
   ]);
@@ -880,8 +967,11 @@ async function calculerPostesMois(mois) {
   const chargesFixes = _chargesFixesCache.reduce((s, c) => s + montantsChargesFixes[c.id].montant, 0);
 
   const ajustParId = Object.fromEntries((ajustEnfantsRes.data || []).map(a => [a.charge_id, a.ajustement_jours]));
+  const ajustPrecParId = Object.fromEntries((ajustEnfantsPrecRes.data || []).map(a => [a.charge_id, a.ajustement_jours]));
   const chargesEnfants = _chargesEnfantsCache.reduce((s, c) => {
-    const joursRetenus = Math.max(0, joursBase + (ajustParId[c.id] || 0));
+    const joursRetenus = c.impact_mois_suivant
+      ? Math.max(0, joursBasePrec + (ajustPrecParId[c.id] || 0))
+      : Math.max(0, joursBase + (ajustParId[c.id] || 0));
     return s + joursRetenus * c.prix_jour;
   }, 0);
 
@@ -1070,6 +1160,7 @@ async function chargerVueAnnuelle() {
 }
 
 async function initPage() {
+  ajusterHauteurEntete(); // l'en-tete n'a de vraie hauteur qu'une fois #app affiche
   await chargerSalaires();
   const membres = await getMembres();
   document.getElementById('dv-membre').innerHTML = _adultes.map(m => `<option value="${m.id}">${m.icone} ${m.nom}</option>`).join('');
