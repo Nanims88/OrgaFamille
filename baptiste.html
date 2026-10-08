@@ -309,6 +309,7 @@ async function basculerTacheEnfant(tacheId, faitActuel, frequence) {
 
 // ================= DEFI DU JOUR =================
 const BANQUE_DEFIS = [
+  // ---- Calcul ----
   { type: 'calcul', question: 'Combien font 3 + 4 ?', reponse: 7 },
   { type: 'calcul', question: 'Combien font 8 - 5 ?', reponse: 3 },
   { type: 'calcul', question: 'Combien font 2 x 6 ?', reponse: 12 },
@@ -316,9 +317,10 @@ const BANQUE_DEFIS = [
   { type: 'calcul', question: 'Combien font 5 + 9 ?', reponse: 14 },
   { type: 'calcul', question: 'Combien font 4 x 4 ?', reponse: 16 },
   { type: 'calcul', question: 'Combien font 15 - 7 ?', reponse: 8 },
-  { type: 'calcul', question: 'Combien font 6 + 6 ?', reponse: 12 },
-  { type: 'calcul', question: 'Combien font 20 - 11 ?', reponse: 9 },
+  { type: 'calcul', question: "Léa a 3 sacs de billes. Dans chaque sac, il y a 5 billes. Combien de billes a-t-elle en tout ?", reponse: 15 },
+  { type: 'calcul', question: "Baptiste avait 20 euros. Il a dépensé 8 euros pour un jouet. Combien lui reste-t-il ?", reponse: 12 },
   { type: 'calcul', question: 'Combien font 3 x 5 ?', reponse: 15 },
+  // ---- Énigmes (devinettes, pas de maths) ----
   { type: 'enigme', question: "Plus on m'enlève de morceaux, plus je grandis. Que suis-je ?", reponse: 'un trou' },
   { type: 'enigme', question: "J'ai des dents mais je ne mange pas. Que suis-je ?", reponse: 'un peigne' },
   { type: 'enigme', question: "Je vole sans ailes et je pleure sans yeux. Que suis-je ?", reponse: 'un nuage' },
@@ -327,26 +329,28 @@ const BANQUE_DEFIS = [
   { type: 'enigme', question: "J'ai un cou mais pas de tête. Que suis-je ?", reponse: 'une bouteille' },
   { type: 'enigme', question: "Je n'ai pas de bouche mais je parle beaucoup. Que suis-je ?", reponse: 'un livre' },
   { type: 'enigme', question: "Je grandis quand tu me nourris avec de l'eau, mais je meurs si tu m'en donnes trop. Que suis-je ?", reponse: 'une plante' },
-  { type: 'enigme', question: "Je suis un nombre pair entre 14 et 18. Si on m'enlève 2, on obtient 14. Quel nombre suis-je ?", reponse: 16 },
-  { type: 'enigme', question: "Léa a 3 sacs de billes. Dans chaque sac, il y a 5 billes. Combien de billes a-t-elle en tout ?", reponse: 15 },
-  { type: 'enigme', question: "Un papillon a 2 ailes. Combien d'ailes ont 4 papillons ?", reponse: 8 },
-  { type: 'enigme', question: "Je suis le double de 6. Quel nombre suis-je ?", reponse: 12 },
-  { type: 'enigme', question: "Je suis la moitié de 10. Quel nombre suis-je ?", reponse: 5 },
-  { type: 'enigme', question: "Baptiste avait 20 euros. Il a dépensé 8 euros pour un jouet. Combien lui reste-t-il ?", reponse: 12 },
-  { type: 'enigme', question: "En comptant de 2 en 2 à partir de 0 (0, 2, 4, 6...), quel nombre vient juste après 8 ?", reponse: 10 },
-  { type: 'enigme', question: "Il y a 7 jours dans une semaine. Combien de jours y a-t-il en 2 semaines ?", reponse: 14 },
-  { type: 'enigme', question: "Je suis un nombre : si tu m'ajoutes 4, tu obtiens 10. Quel nombre suis-je ?", reponse: 6 },
-  { type: 'enigme', question: "Dans une boîte, il y a 10 crayons. On en enlève 3. Combien en reste-t-il ?", reponse: 7 },
+  { type: 'enigme', question: "Je marque les heures mais je n'ai pas de bouche. Que suis-je ?", reponse: 'une horloge' },
+  { type: 'enigme', question: "Je suis plein le matin et vide le soir. Que suis-je ?", reponse: 'un lit' },
+  // ---- Mots (vocabulaire) ----
   { type: 'mot', question: "Complète : le soleil se lève à l'___.", reponse: 'est' },
   { type: 'mot', question: "Complète : un chat miaule, un chien ___.", reponse: 'aboie' },
   { type: 'mot', question: "Complète : en hiver, il fait ___ et parfois il neige.", reponse: 'froid' },
-  { type: 'mot', question: "Complète : la capitale de la France est ___.", reponse: 'paris' },
   { type: 'mot', question: "Complète : il y a 7 jours dans une ___.", reponse: 'semaine' },
-  { type: 'mot', question: "Complète : la Terre tourne autour du ___.", reponse: 'soleil' },
   { type: 'mot', question: "Complète : une année a 12 ___.", reponse: 'mois' },
   { type: 'mot', question: "Complète : l'abeille fabrique du ___.", reponse: 'miel' },
   { type: 'mot', question: "Complète : le contraire de « grand » est « ___ ».", reponse: 'petit' },
-  { type: 'mot', question: "Complète : le contraire de « jour » est « ___ ».", reponse: 'nuit' }
+  { type: 'mot', question: "Complète : le contraire de « jour » est « ___ ».", reponse: 'nuit' },
+  // ---- Culture générale ----
+  { type: 'culture', question: "Complète : la capitale de la France est ___.", reponse: 'paris' },
+  { type: 'culture', question: "Complète : la Terre tourne autour du ___.", reponse: 'soleil' },
+  { type: 'culture', question: "Quel est le plus grand animal du monde ?", reponse: 'baleine' },
+  { type: 'culture', question: "Combien de pattes a une araignée ?", reponse: 8 },
+  { type: 'culture', question: "Complète : le drapeau français est bleu, blanc et ___.", reponse: 'rouge' },
+  { type: 'culture', question: "Quel animal est surnommé le roi de la jungle ?", reponse: 'lion' },
+  { type: 'culture', question: "Combien y a-t-il de jours dans une année ?", reponse: 365 },
+  { type: 'culture', question: "Comment s'appelle le monument en fer, très haut, à Paris ?", reponse: 'tour eiffel' },
+  { type: 'culture', question: "Quelle planète est surnommée la planète rouge ?", reponse: 'mars' },
+  { type: 'culture', question: "Quel est l'animal le plus rapide du monde sur terre ?", reponse: 'guépard' }
 ];
 
 function normaliserReponse(s) {
