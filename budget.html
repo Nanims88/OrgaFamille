@@ -24,6 +24,23 @@
   #budget-mois-bloc .section-titre { margin: 0 0 10px; }
   #budget-mois-bloc .semaine-nav { margin-bottom: 0; }
 
+  /* ---------- Charge fixe : distinction forte entre "figé" et "suggestion" ---------- */
+  .charge-fixe-carte.suggestion {
+    border: 2px dashed var(--baptiste);
+    background: #FBF3E1;
+  }
+  .badge-suggestion, .badge-fige {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-weight: 700;
+    font-size: 0.72rem;
+  }
+  .badge-suggestion { color: #7A5410; background: #F3DFAE; }
+  .badge-fige { color: var(--louis); background: #E6F1DF; }
+
   #zone-charges-fixes.grille-cartes {
     gap: 8px;
   }
@@ -514,14 +531,19 @@ async function chargerChargesFixes() {
 
   document.getElementById('zone-charges-fixes').innerHTML = _chargesFixesCache.map(c => {
     const info = _montantsChargesFixes[c.id];
+    const couleurMontant = info.suggestion ? 'var(--ink-soft)' : (info.montant < 0 ? 'var(--louis)' : 'var(--ink)');
     return `
-    <div class="carte">
+    <div class="carte charge-fixe-carte ${info.suggestion ? 'suggestion' : ''}">
       <strong>${c.libelle}</strong><br>
-      <span style="font-size:1.2rem;font-weight:800;color:${info.montant < 0 ? 'var(--louis)' : 'var(--ink)'}">${info.montant.toFixed(2)} €</span>
+      <span style="font-size:1.2rem;font-weight:800;color:${couleurMontant}">${info.montant.toFixed(2)} €</span>
       <span class="badge-membre" style="background:var(--ink-soft);margin-left:6px;">${labelRepartition(c.repartition)}</span>
-      ${info.suggestion ? '<p style="margin-top:6px;color:var(--ink-soft);font-size:0.78rem;font-style:italic;">Non figé pour ce mois — valeur reprise du dernier mois connu.</p>' : ''}
+      <div style="margin-top:8px;">
+        ${info.suggestion
+          ? '<span class="badge-suggestion">💡 Suggestion — pas figé pour ce mois</span>'
+          : '<span class="badge-fige">✓ Figé pour ce mois</span>'}
+      </div>
       <div style="margin-top:10px;display:flex;gap:6px;">
-        <button class="btn btn-clair" onclick="modifierChargeFixe('${c.id}')">✏️ Modifier ce mois</button>
+        <button class="btn btn-clair" onclick="modifierChargeFixe('${c.id}')">✏️ ${info.suggestion ? 'Figer ce mois' : 'Modifier ce mois'}</button>
         <button class="btn btn-discret" onclick="supprimerChargeFixe('${c.id}')">Supprimer</button>
       </div>
     </div>
