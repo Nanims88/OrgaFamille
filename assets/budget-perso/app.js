@@ -210,6 +210,9 @@ async function calculerSemainesCycle() {
   const { montant: soldeReel } = await soldePrincipalActuel(config);
 
   let reportPrecedent = 0;
+  // Diminue au fil des semaines pas encore faites, pour ne jamais plafonner deux virements
+  // sur la meme marge : sinon chaque semaine se croit seule a disposer du solde d'aujourd'hui.
+  let soldeProjete = soldeReel;
   const semaines = [];
   for (const lundi of lundis) {
     const dateLundi = C.toISODate(lundi);
@@ -232,7 +235,7 @@ async function calculerSemainesCycle() {
     // Pas encore vire : le montant suggere tient compte des saisies deja faites cette semaine
     // (se reajuste tout seul) et ne depasse jamais ce que le decouvert autorise permet.
     const suggestionTheorique = virement ? montantVirement : Math.max(0, reste);
-    const virementSuggere = virement ? montantVirement : plafonnerParDecouvert(suggestionTheorique, soldeReel, config.seuilDecouvertAutorise);
+    const virementSuggere = virement ? montantVirement : plafonnerParDecouvert(suggestionTheorique, soldeProjete, config.seuilDecouvertAutorise);
     const reduitPourDecouvert = !virement && virementSuggere < suggestionTheorique;
     const aujourdhui = dateLundi <= auj() && auj() <= dateFinSemaine;
     semaines.push({
@@ -241,6 +244,9 @@ async function calculerSemainesCycle() {
       aujourdhui, neutralisee: false
     });
     reportPrecedent = reste;
+    // Les virements deja faits sont deja deduits de soldeReel (transaction reelle) : ne pas les
+    // soustraire une 2e fois. Seuls les virements pas-encore-faits grignotent la marge projetee.
+    if (!virement) soldeProjete = C.round2(soldeProjete - virementSuggere);
   }
   return semaines;
 }
