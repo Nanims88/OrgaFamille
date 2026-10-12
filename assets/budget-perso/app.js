@@ -213,6 +213,8 @@ async function calculerSemainesCycle() {
   // Diminue au fil des semaines pas encore faites, pour ne jamais plafonner deux virements
   // sur la meme marge : sinon chaque semaine se croit seule a disposer du solde d'aujourd'hui.
   let soldeProjete = soldeReel;
+  // Jusqu'ou les echeances de dettes (Izicarte, PayPal 4X...) ont deja ete deduites de soldeProjete.
+  let curseurEcheances = auj();
   const semaines = [];
   for (const lundi of lundis) {
     const dateLundi = C.toISODate(lundi);
@@ -235,6 +237,12 @@ async function calculerSemainesCycle() {
     // Pas encore vire : le montant suggere tient compte des saisies deja faites cette semaine
     // (se reajuste tout seul) et ne depasse jamais ce que le decouvert autorise permet.
     const suggestionTheorique = virement ? montantVirement : Math.max(0, reste);
+    // Les echeances de dettes connues avant cette semaine vont reellement sortir du compte d'ici
+    // la, que le virement enveloppe de cette semaine-la soit fait ou non : on les deduit toujours.
+    const echeances = await echeancesDettesEntre(curseurEcheances, dateLundi);
+    // echeances[].montant est deja negatif (sortie d'argent) : on l'ajoute tel quel au solde projete.
+    soldeProjete = C.round2(soldeProjete + echeances.reduce((s, e) => s + e.montant, 0));
+    curseurEcheances = C.toISODate(C.addDays(lundi, 1));
     const virementSuggere = virement ? montantVirement : plafonnerParDecouvert(suggestionTheorique, soldeProjete, config.seuilDecouvertAutorise);
     const reduitPourDecouvert = !virement && virementSuggere < suggestionTheorique;
     const aujourdhui = dateLundi <= auj() && auj() <= dateFinSemaine;
@@ -361,9 +369,23 @@ async function renderAccueil(zone) {
   zoneObjectifs.innerHTML = await rendreListeObjectifsCourte();
 }
 
+// Echeances de dettes (type 'echeancier', ex: Izicarte, PayPal 4X) a date precise entre deux
+// bornes incluses (ISO) : un meme point de verite pour l'echeancier et le plafonnement hebdo,
+// comparaison en chaines ISO pour eviter les pieges de "aujourd'hui" sur des Date avec heure.
+async function echeancesDettesEntre(debutISO, finISO) {
+  const dettes = await DB.getAll('dettes');
+  const liste = [];
+  for (const d of dettes) {
+    if (d.type !== 'echeancier') continue;
+    for (const e of (d.echeances || [])) {
+      if (e.date >= debutISO && e.date <= finISO) liste.push({ date: e.date, libelle: d.nom, montant: -e.montant });
+    }
+  }
+  return liste;
+}
+
 async function echeancesProchaines(nbJours) {
   const config = await DB.getConfig();
-  const dettes = await DB.getAll('dettes');
   const debut = new Date();
   const fin = C.addDays(debut, nbJours);
   const liste = [];
@@ -377,14 +399,7 @@ async function echeancesProchaines(nbJours) {
     }
   }
 
-  for (const d of dettes) {
-    if (d.type === 'echeancier') {
-      for (const e of (d.echeances || [])) {
-        const dateE = C.parseISODate(e.date);
-        if (dateE >= debut && dateE <= fin) liste.push({ date: e.date, libelle: `${d.nom}`, montant: -e.montant });
-      }
-    }
-  }
+  liste.push(...await echeancesDettesEntre(auj(), C.toISODate(fin)));
 
   // Ce qui reste a virer vers l'enveloppe pour le reste du cycle est aussi de l'argent qui va
   // sortir du compte principal : sans lui, l'echeancier et la projection de tresorerie ignorent
