@@ -215,6 +215,10 @@ async function calculerSemainesCycle() {
   let soldeProjete = soldeReel;
   // Jusqu'ou les echeances de dettes (Izicarte, PayPal 4X...) ont deja ete deduites de soldeProjete.
   let curseurEcheances = auj();
+  // Les saisies a date future (hors enveloppe, ex: charge fixe anticipee) ne sont pas dans
+  // soldeReel (reserve aux mouvements passes) : aujourd'hui lui-meme est deja compte dedans,
+  // donc on ne reprend qu'a partir de demain pour ne rien compter deux fois.
+  let curseurSaisiesFutures = C.toISODate(C.addDays(C.parseISODate(auj()), 1));
   const semaines = [];
   for (const lundi of lundis) {
     const dateLundi = C.toISODate(lundi);
@@ -243,6 +247,12 @@ async function calculerSemainesCycle() {
     // echeances[].montant est deja negatif (sortie d'argent) : on l'ajoute tel quel au solde projete.
     soldeProjete = C.round2(soldeProjete + echeances.reduce((s, e) => s + e.montant, 0));
     curseurEcheances = C.toISODate(C.addDays(lundi, 1));
+    // Idem pour les saisies deja faites a une date future (hors categories enveloppe, qui elles
+    // sont deja couvertes par le virement lui-meme) : une charge anticipee doit reduire la marge
+    // avant qu'on suggere le virement suivant, pas rester invisible jusqu'a ce qu'elle tombe.
+    const saisiesFutures = await transactionsHorsEnveloppeEntre(curseurSaisiesFutures, dateLundi, idsEnveloppe);
+    soldeProjete = C.round2(soldeProjete + saisiesFutures.reduce((s, t) => s + t.montant, 0));
+    curseurSaisiesFutures = C.toISODate(C.addDays(lundi, 1));
     const virementSuggere = virement ? montantVirement : plafonnerParDecouvert(suggestionTheorique, soldeProjete, config.seuilDecouvertAutorise);
     const reduitPourDecouvert = !virement && virementSuggere < suggestionTheorique;
     const aujourdhui = dateLundi <= auj() && auj() <= dateFinSemaine;
@@ -382,6 +392,14 @@ async function echeancesDettesEntre(debutISO, finISO) {
     }
   }
   return liste;
+}
+
+// Saisies deja faites a une date future sur le compte principal, hors categories enveloppe
+// (celles-ci sont deja couvertes par le virement enveloppe qui les finance, pas par le compte
+// principal directement) : une charge fixe ou autre depense anticipee par l'utilisateur.
+async function transactionsHorsEnveloppeEntre(debutISO, finISO, idsEnveloppe) {
+  const toutes = await DB.getAll('transactions');
+  return toutes.filter(t => t.compte === 'principal' && t.date >= debutISO && t.date <= finISO && !idsEnveloppe.has(t.categorie));
 }
 
 async function echeancesProchaines(nbJours) {
