@@ -148,10 +148,7 @@ async function trouverBaptiste() {
 }
 
 function tachesPourJour(jourSemaine) {
-  return _tachesBaptiste.filter(t =>
-    t.frequence === 'quotidien' || t.frequence === 'mensuel' || t.frequence === 'ponctuel' ||
-    (t.frequence === 'hebdo' && (t.jours_semaine || []).includes(jourSemaine))
-  );
+  return _tachesBaptiste.filter(t => tacheApplicableCeJour(t, jourSemaine));
 }
 
 async function chargerScores() {
@@ -162,18 +159,23 @@ async function chargerScores() {
   const premierDuMois = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
   const dernierDuMois = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0);
 
+  // Exceptions : seules celles des propres tâches de Baptiste nous intéressent ici, pas celles
+  // de toute la famille sur la période.
+  const idsTachesBaptiste = _tachesBaptiste.map(t => t.id);
+  let requeteExceptions = sb.from('taches_menage_exceptions').select('tache_id,date')
+    .gte('date', lundi < formatDateLocale(premierDuMois) ? lundi : formatDateLocale(premierDuMois))
+    .lte('date', dimanche > formatDateLocale(dernierDuMois) ? dimanche : formatDateLocale(dernierDuMois));
+  if (idsTachesBaptiste.length) requeteExceptions = requeteExceptions.in('tache_id', idsTachesBaptiste);
+
   const [jourRes, semaineRes, moisRes, exceptionsRes] = await Promise.all([
     sb.from('taches_menage_log').select('id').eq('fait_par', _baptiste.id).eq('fait', true).eq('date', auj),
     sb.from('taches_menage_log').select('id').eq('fait_par', _baptiste.id).eq('fait', true).gte('date', lundi).lte('date', dimanche),
     sb.from('taches_menage_log').select('id').eq('fait_par', _baptiste.id).eq('fait', true).gte('date', formatDateLocale(premierDuMois)).lte('date', formatDateLocale(dernierDuMois)),
-    sb.from('taches_menage_exceptions').select('tache_id,date')
-      .gte('date', lundi < formatDateLocale(premierDuMois) ? lundi : formatDateLocale(premierDuMois))
-      .lte('date', dimanche > formatDateLocale(dernierDuMois) ? dimanche : formatDateLocale(dernierDuMois))
+    requeteExceptions
   ]);
 
   // Ensemble "tache_id|date" exclue ce jour-là (n'enlève rien à la fréquence, juste ce jour précis)
-  const exclusions = new Set((exceptionsRes.data || []).map(e => `${e.tache_id}|${e.date}`));
-  const nbApplicables = (jourSemaine) => tachesPourJour(jourSemaine).length;
+  const exclusions = clesExclusion(exceptionsRes.data || [], false);
   const nbApplicablesDate = (d) => {
     const ds = formatDateLocale(d);
     return tachesPourJour(d.getDay()).filter(t => !exclusions.has(`${t.id}|${ds}`)).length;
@@ -219,7 +221,7 @@ async function chargerTachesEnfant() {
   ]);
   _tachesBaptiste = tachesRes.data || [];
   const tachesExclues = exceptionsRes.data || [];
-  const idsExclus = new Set(tachesExclues.map(e => e.tache_id));
+  const idsExclus = clesExclusion(tachesExclues, true);
 
   const logsMap = {};
   (logsRes.data || []).forEach(l => logsMap[l.tache_id] = l);

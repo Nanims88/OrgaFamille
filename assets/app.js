@@ -1,8 +1,6 @@
 // Nécessite config.js chargé avant ce fichier, et le script CDN @supabase/supabase-js chargé avant aussi.
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-const JOURS = ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"];
-
 // ---------- Portail de connexion ----------
 // Vrai compte Supabase Auth par personne (email + mot de passe) : c'est cette session
 // authentifiee qui permet aux regles RLS de bloquer l'acces anonyme.
@@ -49,9 +47,10 @@ function badgeMembre(membre) {
   return `<span class="badge-membre" style="background:${membre.couleur}">${membre.icone} ${membre.nom}</span>`;
 }
 
-function avatarMembre(membre) {
-  if (!membre) return `<span class="avatar" style="--m-color:var(--tous)">👨‍👩‍👧‍👦</span>`;
-  return `<span class="avatar" style="--m-color:${membre.couleur}">${membre.icone}</span>`;
+function avatarMembre(membre, styleSupplementaire = '') {
+  const couleur = membre ? membre.couleur : 'var(--tous)';
+  const icone = membre ? membre.icone : '👨‍👩‍👧‍👦';
+  return `<span class="avatar" style="--m-color:${couleur};${styleSupplementaire}">${icone}</span>`;
 }
 
 // ---------- Dates ----------
@@ -93,6 +92,20 @@ function lundiDeLaSemaine(date) {
   d.setDate(d.getDate() + decalage);
   d.setHours(0, 0, 0, 0);
   return d;
+}
+
+// ---------- Tâches ménagères ----------
+// Une tâche est due ce jour-là : quotidien/mensuel/ponctuel toujours, hebdo seulement les
+// jours cochés. Règle centrale réutilisée par toutes les pages qui affichent des tâches du jour.
+function tacheApplicableCeJour(tache, jourSemaine) {
+  return tache.frequence === 'quotidien' || tache.frequence === 'mensuel' || tache.frequence === 'ponctuel'
+    || (tache.frequence === 'hebdo' && (tache.jours_semaine || []).includes(jourSemaine));
+}
+
+// Construit l'ensemble des clés "tache_id|date" exclues ce jour-là (taches_menage_exceptions),
+// pour un filtrage en O(1) par tache. Avec une seule date (scope un jour), la clé est juste l'id.
+function clesExclusion(exceptions, dateUnique) {
+  return new Set(exceptions.map(e => dateUnique ? e.tache_id : `${e.tache_id}|${e.date}`));
 }
 
 document.addEventListener('DOMContentLoaded', () => {

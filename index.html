@@ -195,8 +195,8 @@ async function toggleTache(tacheId, membreId, faitActuel, frequence) {
 async function chargerLanes() {
   const jourSemaine = new Date().getDay();
   const auj = dateAujourdhui();
-  const bornInf = new Date(Date.now() - 60 * 86400000).toISOString().slice(0, 10);
-  const bornSup = new Date(Date.now() + 60 * 86400000).toISOString().slice(0, 10);
+  const bornInf = formatDateLocale(new Date(Date.now() - 60 * 86400000));
+  const bornSup = formatDateLocale(new Date(Date.now() + 60 * 86400000));
 
   const [membres, taches, logs, planning, evenementsRes, exceptionsRes] = await Promise.all([
     getMembres(),
@@ -207,7 +207,7 @@ async function chargerLanes() {
     sb.from('taches_menage_exceptions').select('tache_id').eq('date', auj)
   ]);
 
-  const idsExclusAuj = new Set((exceptionsRes.data || []).map(e => e.tache_id));
+  const idsExclusAuj = clesExclusion(exceptionsRes.data || [], true);
   const logsMap = {};
   (logs.data || []).forEach(l => logsMap[l.tache_id] = l);
 
@@ -231,7 +231,7 @@ async function chargerLanes() {
     const evtsRemplace = [...evtsM, ...evtsTous].filter(e => e.mode === 'remplace');
     const evtsAjout = evtsM.filter(e => e.mode === 'ajout');
     const planningM = evtsRemplace.length ? [] : (planning.data || []).filter(p => p.membre_id === m.id);
-    const tachesM = (taches.data || []).filter(t => t.membre_id === m.id && !idsExclusAuj.has(t.id) && (t.frequence === 'quotidien' || t.frequence === 'mensuel' || t.frequence === 'ponctuel' || (t.frequence === 'hebdo' && (t.jours_semaine || []).includes(jourSemaine))));
+    const tachesM = (taches.data || []).filter(t => t.membre_id === m.id && !idsExclusAuj.has(t.id) && tacheApplicableCeJour(t, jourSemaine));
     const rienDuTout = tachesM.length === 0 && planningM.length === 0 && evtsAjout.length === 0 && evtsRemplace.length === 0;
 
     return `
@@ -255,15 +255,8 @@ async function chargerLanes() {
 }
 
 // ================= VUE SEMAINE =================
+// lundiDeLaSemaine vient d'assets/app.js (charge avant ce script), pas besoin de la redefinir ici.
 let offsetSemaine = 0;
-function lundiDeLaSemaine(date) {
-  const d = new Date(date);
-  const jour = d.getDay(); // 0=dimanche
-  const decalage = jour === 0 ? -6 : 1 - jour;
-  d.setDate(d.getDate() + decalage);
-  d.setHours(0,0,0,0);
-  return d;
-}
 function numeroSemaineISO(date) {
   const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
   const jourISO = d.getUTCDay() || 7; // lundi=1 ... dimanche=7
@@ -292,8 +285,8 @@ async function chargerSemaine() {
   const numSemaine = numeroSemaineISO(lundi);
   document.getElementById('semaine-titre').textContent = offsetSemaine === 0 ? `Cette semaine · S${numSemaine}` : `Semaine ${numSemaine}`;
 
-  const bornInf = new Date(lundi.getTime() - 60 * 86400000).toISOString().slice(0, 10);
-  const bornSup = new Date(lundi.getTime() + 66 * 86400000).toISOString().slice(0, 10);
+  const bornInf = formatDateLocale(new Date(lundi.getTime() - 60 * 86400000));
+  const bornSup = formatDateLocale(new Date(lundi.getTime() + 66 * 86400000));
 
   const [membres, planning, evenementsRes, activitesRes, travauxRes] = await Promise.all([
     getMembres(),
@@ -374,9 +367,8 @@ async function chargerMois() {
     curseur.setDate(curseur.getDate() + 1);
   }
 
-  const bornInf = debutGrille.toISOString().slice(0, 10);
-  const bornSup = new Date(finGrille.getTime() + 60 * 86400000).toISOString().slice(0, 10);
-  const bornInfLarge = new Date(debutGrille.getTime() - 60 * 86400000).toISOString().slice(0, 10);
+  const bornSup = formatDateLocale(new Date(finGrille.getTime() + 60 * 86400000));
+  const bornInfLarge = formatDateLocale(new Date(debutGrille.getTime() - 60 * 86400000));
 
   const [membres, evenementsRes, activitesRes, travauxRes] = await Promise.all([
     getMembres(),
