@@ -392,20 +392,38 @@ td { vertical-align: top; }
 .mois-cellule.vacances { background: #FBEFE6; }
 .mois-cellule.aujourdhui { outline: 2px solid var(--maman); outline-offset: -2px; }
 .mois-jour-num { font-weight: 800; font-size: 0.78rem; }
-.mois-evt {
-  display: block;
-  font-size: 0.6rem;
-  line-height: 1.3;
+.mois-bandeau {
+  display: flex;
+  align-items: center;
+  font-size: 0.66rem;
+  line-height: 1.2;
   font-weight: 700;
   color: white;
-  padding: 1px 4px;
-  border-radius: 4px;
-  margin-top: 3px;
+  padding: 2px 6px;
+  border-radius: 6px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.mois-evt-plus { font-size: 0.6rem; color: var(--ink-soft); margin-top: 2px; }
+.mois-evt-liste {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  margin-top: 3px;
+}
+.mois-evt-icone {
+  width: 17px;
+  height: 17px;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  font-size: 0.62rem;
+  line-height: 1;
+  color: white;
+}
+.mois-evt-plus { font-size: 0.6rem; color: var(--ink-soft); align-self: center; }
 
 .encart-travaux {
   border-left: 4px solid var(--travaux);
@@ -425,7 +443,8 @@ td { vertical-align: top; }
     overflow-x: visible;
   }
   .mois-cellule { min-height: 56px; padding: 4px 3px; }
-  .mois-evt { font-size: 0.52rem; padding: 1px 3px; }
+  .mois-bandeau { font-size: 0.56rem; padding: 2px 4px; }
+  .mois-evt-icone { width: 15px; height: 15px; font-size: 0.56rem; }
   .mois-jour-num { font-size: 0.72rem; }
   header.entete { padding: 16px 16px 10px; }
   nav.modules { padding: 0 12px 14px; }

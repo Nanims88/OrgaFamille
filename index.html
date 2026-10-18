@@ -385,45 +385,100 @@ async function chargerMois() {
   ]);
   const membresParId = Object.fromEntries(membres.map(m => [m.id, m]));
 
-  const noms = ['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
-  let html = '<div class="mois-entete-semaine"></div>' + noms.map(n => `<div class="mois-entete-jour">${n}</div>`).join('');
-
-  const celluleJour = (d) => {
-    const ds = formatDateLocale(d);
-    const evtsJour = (evenementsRes.data || []).filter(e => evenementCouvre(e, ds));
-    const activitesJour = (activitesRes.data || []).filter(a => a.date_prevue === ds);
-    const travauxJour = (travauxRes.data || []).filter(t => t.date_prevue === ds);
-    const horsMois = d.getMonth() !== mois;
-    const estAujourdhui = ds === dateAujourdhui();
-    const estVacances = evtsJour.some(e => !e.membre_id && e.mode === 'remplace');
-    // Assez pour toujours montrer les 4 membres de la famille meme s'ils ont chacun
-    // quelque chose le meme jour, plus une marge pour un evenement partage/activite.
-    const MAX_AFFICHES = 6;
-
-    const chipsEvt = evtsJour.map(e => {
-      const m = membresParId[e.membre_id];
-      const couleur = e.couleur || (m ? m.couleur : 'var(--tous)');
-      return `<span class="mois-evt" style="background:${couleur}" title="${e.titre}">${e.titre}</span>`;
-    });
-    const chipsAct = activitesJour.map(a => `<span class="mois-evt" style="background:var(--activite)" title="${a.titre}">🎒 ${a.titre}</span>`);
-    const chipsTrav = travauxJour.map(t => `<span class="mois-evt" style="background:var(--travaux)" title="${t.libelle}">🧰 ${t.libelle}</span>`);
-    const toutesLesChips = [...chipsEvt, ...chipsAct, ...chipsTrav];
-    const reste = toutesLesChips.length - MAX_AFFICHES;
-
-    return `
-      <div class="mois-cellule ${horsMois ? 'hors-mois' : ''} ${estVacances ? 'vacances' : ''} ${estAujourdhui ? 'aujourdhui' : ''}">
-        <div class="mois-jour-num">${d.getDate()}</div>
-        ${toutesLesChips.slice(0, MAX_AFFICHES).join('')}
-        ${reste > 0 ? `<div class="mois-evt-plus">+${reste}</div>` : ''}
-      </div>
-    `;
+  // Un evenement qui s'etend sur plusieurs jours (vacances, sejour...) est affiche en
+  // bandeau continu au-dessus de la semaine plutot que repete en texte dans chaque cellule.
+  const estMultiJours = (e) => {
+    const debut = e.date_debut.slice(0, 10);
+    const fin = e.date_fin ? e.date_fin.slice(0, 10) : debut;
+    return fin !== debut;
   };
+  const tousEvenements = evenementsRes.data || [];
+  const evenementsMulti = tousEvenements.filter(estMultiJours);
+  const evenementsSimples = tousEvenements.filter(e => !estMultiJours(e));
 
-  // Une ligne de la grille = une semaine ISO ; on prefixe chacune de son numero.
+  const pastilleEvt = (e) => {
+    const m = membresParId[e.membre_id];
+    const couleur = e.couleur || (m ? m.couleur : 'var(--tous)');
+    const icone = m ? m.icone : '👨‍👩‍👧‍👦';
+    return `<span class="mois-evt-icone" style="background:${couleur}" title="${e.titre}">${icone}</span>`;
+  };
+  const pastilleAct = (a) => `<span class="mois-evt-icone" style="background:var(--activite)" title="${a.titre}">🎒</span>`;
+  const pastilleTrav = (t) => `<span class="mois-evt-icone" style="background:var(--travaux)" title="${t.libelle}">🧰</span>`;
+
+  const noms = ['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
+  let html = '<div class="mois-entete-semaine" style="grid-row:1;grid-column:1"></div>' +
+    noms.map((n, i) => `<div class="mois-entete-jour" style="grid-row:1;grid-column:${i + 2}">${n}</div>`).join('');
+
+  // Toute la grille utilise un placement explicite (grid-row/grid-column) pour pouvoir
+  // inserer, au-dessus de chaque semaine, une ou plusieurs lignes de bandeaux multi-jours.
+  let ligneCourante = 2;
+
   for (let i = 0; i < jours.length; i += 7) {
     const semaine = jours.slice(i, i + 7);
-    html += `<div class="mois-numero-semaine">S${numeroSemaineISO(semaine[0])}</div>`;
-    html += semaine.map(celluleJour).join('');
+    const debutSemaine = formatDateLocale(semaine[0]);
+    const finSemaine = formatDateLocale(semaine[6]);
+
+    const bandeauxSemaine = evenementsMulti
+      .filter(e => {
+        const d = e.date_debut.slice(0, 10);
+        const f = e.date_fin.slice(0, 10);
+        return d <= finSemaine && f >= debutSemaine;
+      })
+      .map(e => {
+        const debutEvt = e.date_debut.slice(0, 10);
+        const finEvt = e.date_fin.slice(0, 10);
+        let colDebut = 0, colFin = 6;
+        for (let c = 0; c < 7; c++) { if (formatDateLocale(semaine[c]) < debutEvt) colDebut = c + 1; }
+        for (let c = 6; c >= 0; c--) { if (formatDateLocale(semaine[c]) > finEvt) colFin = c - 1; }
+        return { evt: e, colDebut, colFin };
+      })
+      .filter(b => b.colDebut <= b.colFin);
+
+    // Repartit les bandeaux en couloirs pour que deux evenements qui se chevauchent
+    // ne se superposent pas visuellement.
+    const couloirs = [];
+    bandeauxSemaine.forEach(b => {
+      let couloir = couloirs.findIndex(occ => occ.every(o => b.colDebut > o.colFin || b.colFin < o.colDebut));
+      if (couloir === -1) { couloir = couloirs.length; couloirs.push([]); }
+      couloirs[couloir].push({ colDebut: b.colDebut, colFin: b.colFin });
+      b.couloir = couloir;
+    });
+
+    bandeauxSemaine.forEach(b => {
+      const m = membresParId[b.evt.membre_id];
+      const couleur = b.evt.couleur || (m ? m.couleur : 'var(--tous)');
+      html += `<div class="mois-bandeau" style="grid-row:${ligneCourante + b.couloir};grid-column:${b.colDebut + 2} / ${b.colFin + 3};background:${couleur}" title="${b.evt.titre}">${b.evt.titre}</div>`;
+    });
+
+    const ligneJours = ligneCourante + couloirs.length;
+    html += `<div class="mois-numero-semaine" style="grid-row:${ligneJours};grid-column:1">S${numeroSemaineISO(semaine[0])}</div>`;
+
+    semaine.forEach((d, idx) => {
+      const ds = formatDateLocale(d);
+      const evtsJourSimples = evenementsSimples.filter(e => evenementCouvre(e, ds));
+      const activitesJour = (activitesRes.data || []).filter(a => a.date_prevue === ds);
+      const travauxJour = (travauxRes.data || []).filter(t => t.date_prevue === ds);
+      const horsMois = d.getMonth() !== mois;
+      const estAujourdhui = ds === dateAujourdhui();
+      const estVacances = tousEvenements.some(e => !e.membre_id && e.mode === 'remplace' && evenementCouvre(e, ds));
+      // Les pastilles sont compactes : largement assez pour tous les membres d'une famille le meme jour.
+      const MAX_AFFICHES = 8;
+
+      const toutesLesPastilles = [...evtsJourSimples.map(pastilleEvt), ...activitesJour.map(pastilleAct), ...travauxJour.map(pastilleTrav)];
+      const reste = toutesLesPastilles.length - MAX_AFFICHES;
+
+      html += `
+        <div class="mois-cellule ${horsMois ? 'hors-mois' : ''} ${estVacances ? 'vacances' : ''} ${estAujourdhui ? 'aujourdhui' : ''}" style="grid-row:${ligneJours};grid-column:${idx + 2}">
+          <div class="mois-jour-num">${d.getDate()}</div>
+          <div class="mois-evt-liste">
+            ${toutesLesPastilles.slice(0, MAX_AFFICHES).join('')}
+            ${reste > 0 ? `<span class="mois-evt-plus">+${reste}</span>` : ''}
+          </div>
+        </div>
+      `;
+    });
+
+    ligneCourante = ligneJours + 1;
   }
 
   document.getElementById('mois-grid').innerHTML = html;
