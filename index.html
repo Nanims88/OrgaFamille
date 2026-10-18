@@ -396,14 +396,14 @@ async function chargerMois() {
   const evenementsMulti = tousEvenements.filter(estMultiJours);
   const evenementsSimples = tousEvenements.filter(e => !estMultiJours(e));
 
+  const pastille = (icone, couleur, texte) =>
+    `<div class="mois-evt-chip" title="${texte}"><span class="mois-evt-icone" style="background:${couleur}">${icone}</span><span class="mois-evt-texte">${texte}</span></div>`;
   const pastilleEvt = (e) => {
     const m = membresParId[e.membre_id];
-    const couleur = e.couleur || (m ? m.couleur : 'var(--tous)');
-    const icone = m ? m.icone : '👨‍👩‍👧‍👦';
-    return `<span class="mois-evt-icone" style="background:${couleur}" title="${e.titre}">${icone}</span>`;
+    return pastille(m ? m.icone : '👨‍👩‍👧‍👦', e.couleur || (m ? m.couleur : 'var(--tous)'), e.titre);
   };
-  const pastilleAct = (a) => `<span class="mois-evt-icone" style="background:var(--activite)" title="${a.titre}">🎒</span>`;
-  const pastilleTrav = (t) => `<span class="mois-evt-icone" style="background:var(--travaux)" title="${t.libelle}">🧰</span>`;
+  const pastilleAct = (a) => pastille('🎒', 'var(--activite)', a.titre);
+  const pastilleTrav = (t) => pastille('🧰', 'var(--travaux)', t.libelle);
 
   const noms = ['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
   let html = '<div class="mois-entete-semaine" style="grid-row:1;grid-column:1"></div>' +
@@ -451,7 +451,7 @@ async function chargerMois() {
     });
 
     const ligneJours = ligneCourante + couloirs.length;
-    html += `<div class="mois-numero-semaine" style="grid-row:${ligneJours};grid-column:1">S${numeroSemaineISO(semaine[0])}</div>`;
+    html += `<div class="mois-numero-semaine" style="grid-row:${ligneJours};grid-column:1"><span class="mois-s-label">S</span>${numeroSemaineISO(semaine[0])}</div>`;
 
     semaine.forEach((d, idx) => {
       const ds = formatDateLocale(d);
@@ -461,8 +461,7 @@ async function chargerMois() {
       const horsMois = d.getMonth() !== mois;
       const estAujourdhui = ds === dateAujourdhui();
       const estVacances = tousEvenements.some(e => !e.membre_id && e.mode === 'remplace' && evenementCouvre(e, ds));
-      // Les pastilles sont compactes : largement assez pour tous les membres d'une famille le meme jour.
-      const MAX_AFFICHES = 8;
+      const MAX_AFFICHES = 3;
 
       const toutesLesPastilles = [...evtsJourSimples.map(pastilleEvt), ...activitesJour.map(pastilleAct), ...travauxJour.map(pastilleTrav)];
       const reste = toutesLesPastilles.length - MAX_AFFICHES;
