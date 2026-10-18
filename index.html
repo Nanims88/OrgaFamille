@@ -175,7 +175,7 @@ async function terminerTravail(id) {
 }
 
 // ================= VUE JOUR =================
-async function toggleTache(tacheId, membreId, faitActuel, frequence) {
+async function toggleTache(tacheId, membreId, faitActuel, frequence, checkbox) {
   if (frequence === 'ponctuel') {
     await terminerTacheDefinitivement(tacheId);
     chargerLanes();
@@ -189,7 +189,14 @@ async function toggleTache(tacheId, membreId, faitActuel, frequence) {
     fait_par: membreId,
     fait_le: nouvelEtat ? new Date().toISOString() : null
   }, { onConflict: 'tache_id,date' });
-  chargerLanes();
+  // Met a jour seulement cette case plutot que de tout recharger (6 requetes) pour un clic :
+  // rien d'autre dans la lane ne depend de l'etat "fait" d'une tache.
+  if (checkbox) {
+    checkbox.closest('.item-ligne').classList.toggle('fait', nouvelEtat);
+    checkbox.setAttribute('onchange', `toggleTache('${tacheId}','${membreId}',${nouvelEtat},'${frequence}', this)`);
+  } else {
+    chargerLanes();
+  }
 }
 
 async function chargerLanes() {
@@ -244,7 +251,7 @@ async function chargerLanes() {
           const log = logsMap[t.id];
           const fait = log ? log.fait : false;
           return `<div class="item-ligne ${fait ? 'fait' : ''}">
-            <input type="checkbox" ${fait ? 'checked' : ''} onchange="toggleTache('${t.id}','${m.id}',${fait},'${t.frequence}')">
+            <input type="checkbox" ${fait ? 'checked' : ''} onchange="toggleTache('${t.id}','${m.id}',${fait},'${t.frequence}', this)">
             ${t.icone} ${t.libelle}
           </div>`;
         }).join('')}

@@ -300,13 +300,43 @@ async function basculerTacheEnfant(tacheId, faitActuel, frequence) {
     if (frequence === 'ponctuel') {
       await sb.from('taches_menage').update({ actif: false }).eq('id', tacheId);
       carte.classList.add('disparait');
+      // Le rechargement complet ci-dessous rafraichit deja les scores depuis le serveur :
+      // ne pas les ajuster localement en plus (double comptage).
       setTimeout(() => chargerTachesEnfant().then(chargerScores), 400);
+      return;
     }
   } else {
     carte.classList.remove('coche');
     carte.querySelector('.rond-coche').textContent = '';
   }
-  chargerScores();
+  // Les 3 handlers (emoji/libelle/rond) ont l'ancien etat "fait" fige dans leur onclick : sans
+  // les remettre a jour, un 2e clic rejouerait le meme etat au lieu de basculer dans l'autre sens.
+  carte.querySelectorAll('[onclick^="basculerTacheEnfant"]').forEach(el => {
+    el.setAttribute('onclick', `basculerTacheEnfant('${tacheId}', ${nouvelEtat}, '${frequence}')`);
+  });
+  // Ajuste les compteurs affiches sans tout recharger (chargerScores fait 4 requetes a chaque
+  // appel) : le nombre de taches applicables (le "max") ne change pas quand on coche/decoche,
+  // seul l'obtenu bouge, et seulement sur les periodes (jour/semaine/mois) qui couvrent la date.
+  ajusterScoresLocalement(dateConsultee(), nouvelEtat ? POINTS_PAR_TACHE : -POINTS_PAR_TACHE);
+}
+
+function ajusterScoresLocalement(dateLog, delta) {
+  const auj = dateAujourdhui();
+  const lundi = formatDateLocale(lundiDeLaSemaine(new Date()));
+  const dimanche = formatDateLocale(new Date(lundiDeLaSemaine(new Date()).getTime() + 6 * 86400000));
+  const premierDuMois = formatDateLocale(new Date(new Date().getFullYear(), new Date().getMonth(), 1));
+  const dernierDuMois = formatDateLocale(new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0));
+
+  if (dateLog === auj) majScoreAffiche('score-jour', delta);
+  if (dateLog >= lundi && dateLog <= dimanche) majScoreAffiche('score-semaine', delta);
+  if (dateLog >= premierDuMois && dateLog <= dernierDuMois) majScoreAffiche('score-mois', delta);
+}
+
+function majScoreAffiche(id, delta) {
+  const el = document.getElementById(id);
+  const m = el && el.textContent.match(/^(-?\d+)\/(\d+)/);
+  if (!m) return;
+  el.textContent = `${parseInt(m[1], 10) + delta}/${m[2]} ⭐`;
 }
 
 // ================= DEFI DU JOUR =================
