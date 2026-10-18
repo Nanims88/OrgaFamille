@@ -344,27 +344,22 @@ function majLabelMoisBudget() {
   document.getElementById('budget-mois-label').textContent =
     _offsetMoisBudget === 0 ? 'Ce mois' : moisConsulte().toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
 }
+async function rafraichirMoisBudget() {
+  majLabelMoisBudget();
+  await chargerSalaires();
+  chargerTransport();
+  await Promise.all([chargerChargesFixes(), chargerChargesEnfants()]);
+  chargerDepenses();
+  await chargerSoldeCompte();
+  chargerResume();
+}
 function deplacerMoisBudget(delta) {
   _offsetMoisBudget += delta;
-  majLabelMoisBudget();
-  chargerSalaires().then(() => {
-    chargerTransport();
-    Promise.all([chargerChargesFixes(), chargerChargesEnfants()]).then(() => {
-      chargerDepenses();
-      chargerSoldeCompte().then(chargerResume);
-    });
-  });
+  rafraichirMoisBudget();
 }
 function allerMoisActuelBudget() {
   _offsetMoisBudget = 0;
-  majLabelMoisBudget();
-  chargerSalaires().then(() => {
-    chargerTransport();
-    Promise.all([chargerChargesFixes(), chargerChargesEnfants()]).then(() => {
-      chargerDepenses();
-      chargerSoldeCompte().then(chargerResume);
-    });
-  });
+  rafraichirMoisBudget();
 }
 
 function joursOuvresDuMois(premierJour) {
@@ -411,21 +406,32 @@ function tauxRepartition(repartition, membreId) {
 }
 
 // ---------- Salaires (figés par mois) ----------
-async function resoudreSalairesEtPourcentages(mois) {
-  const { data: exact } = await sb.from('budget_profils').select('*').eq('mois', mois);
-  const exactParId = Object.fromEntries((exact || []).map(p => [p.membre_id, p.salaire]));
-  const { data: historique } = await sb.from('budget_profils').select('*').lte('mois', mois).order('mois', { ascending: false });
+// Resout, pour chaque id d'une liste, sa valeur figee pour "mois" dans une table a cle composite
+// (id, mois) si elle existe, sinon la derniere valeur connue avant ce mois (suggestion non figee).
+// Coeur commun a resoudreSalairesEtPourcentages et resoudreMontantsChargesFixes.
+async function resoudreValeurFigeeParMois(table, colonneId, colonneValeur, mois, ids) {
+  const { data: exact } = await sb.from(table).select('*').eq('mois', mois);
+  const exactParId = Object.fromEntries((exact || []).map(r => [r[colonneId], r[colonneValeur]]));
+  const { data: historique } = await sb.from(table).select('*').lte('mois', mois).order('mois', { ascending: false });
+  const resultat = {};
+  ids.forEach(id => {
+    if (exactParId[id] !== undefined) {
+      resultat[id] = { valeur: exactParId[id], suggestion: false };
+    } else {
+      const derniere = (historique || []).find(r => r[colonneId] === id);
+      resultat[id] = { valeur: derniere ? derniere[colonneValeur] : undefined, suggestion: !!derniere };
+    }
+  });
+  return resultat;
+}
 
+async function resoudreSalairesEtPourcentages(mois) {
+  const resolues = await resoudreValeurFigeeParMois('budget_profils', 'membre_id', 'salaire', mois, _adultes.map(m => m.id));
   const salaires = {};
   const suggestion = {};
   _adultes.forEach(m => {
-    if (exactParId[m.id] !== undefined) {
-      salaires[m.id] = exactParId[m.id];
-    } else {
-      const derniere = (historique || []).find(p => p.membre_id === m.id);
-      salaires[m.id] = derniere ? derniere.salaire : 0;
-      suggestion[m.id] = !!derniere;
-    }
+    salaires[m.id] = resolues[m.id].valeur !== undefined ? resolues[m.id].valeur : 0;
+    if (resolues[m.id].suggestion) suggestion[m.id] = true;
   });
   const total = _adultes.reduce((s, m) => s + (salaires[m.id] || 0), 0);
   const pourcentages = {};
@@ -466,13 +472,16 @@ async function enregistrerSalaire(e, membreId) {
 }
 
 // ---------- Transport / carburant ----------
+function coutCarburant(t) {
+  return t.km_aller * 2 * t.jours_travail_mois * (t.consommation_l_100km / 100) * t.prix_litre;
+}
 async function chargerTransport() {
   const { data } = await sb.from('budget_transport').select('*');
   const parId = Object.fromEntries((data || []).map(t => [t.membre_id, t]));
 
   document.getElementById('zone-transport').innerHTML = _adultes.map(m => {
     const t = parId[m.id] || { km_aller: 0, jours_travail_mois: 20, consommation_l_100km: 6, prix_litre: 1.8 };
-    const cout = t.km_aller * 2 * t.jours_travail_mois * (t.consommation_l_100km / 100) * t.prix_litre;
+    const cout = coutCarburant(t);
     return `
       <div class="carte" style="border-left:4px solid ${m.couleur}">
         <strong>${m.icone} ${m.nom}</strong>
@@ -508,17 +517,11 @@ let _chargesFixesCache = [];
 let _montantsChargesFixes = {}; // charge_id -> { montant, suggestion }
 
 async function resoudreMontantsChargesFixes(mois) {
-  const { data: exact } = await sb.from('budget_charges_fixes_montant').select('*').eq('mois', mois);
-  const exactMap = Object.fromEntries((exact || []).map(r => [r.charge_id, r.montant]));
-  const { data: hist } = await sb.from('budget_charges_fixes_montant').select('*').lte('mois', mois).order('mois', { ascending: false });
+  const resolues = await resoudreValeurFigeeParMois('budget_charges_fixes_montant', 'charge_id', 'montant', mois, _chargesFixesCache.map(c => c.id));
   const result = {};
   _chargesFixesCache.forEach(c => {
-    if (exactMap[c.id] !== undefined) {
-      result[c.id] = { montant: exactMap[c.id], suggestion: false };
-    } else {
-      const derniere = (hist || []).find(r => r.charge_id === c.id);
-      result[c.id] = { montant: derniere ? derniere.montant : c.montant, suggestion: !!derniere };
-    }
+    const r = resolues[c.id];
+    result[c.id] = { montant: r.valeur !== undefined ? r.valeur : c.montant, suggestion: r.suggestion };
   });
   return result;
 }
@@ -753,10 +756,15 @@ async function chargerDepenses() {
     </div>
   `).join('') || '<div class="vide">Aucune dépense saisie ce mois-ci.</div>';
 }
-function moisSuivantStr(aaaammStr) {
+// Decale un mois "YYYY-MM" de delta mois (positif ou negatif), renvoie "YYYY-MM".
+// Coeur commun a moisSuivantStr/moisPrecedentStr, qui n'en sont que des vues a +1/-1.
+function moisDecale(aaaammStr, delta) {
   const [a, m] = aaaammStr.split('-').map(Number);
-  const d = new Date(a, m, 1); // m est déjà le mois suivant (0-indexé = mois actuel +1)
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
+  const d = new Date(a, m - 1 + delta, 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+function moisSuivantStr(aaaammStr) {
+  return `${moisDecale(aaaammStr, 1)}-01`;
 }
 async function supprimerDepense(id) {
   if (!confirm('Supprimer cette dépense ?')) return;
@@ -783,15 +791,22 @@ document.getElementById('form-depense').addEventListener('submit', async (e) => 
 });
 
 function moisPrecedentStr(aaaammStr) {
-  const [a, m] = aaaammStr.split('-').map(Number);
-  const d = new Date(a, m - 2, 1); // m-1 = mois actuel (0-indexé), -1 de plus = mois précédent
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  return moisDecale(aaaammStr, -1);
 }
 
 // ---------- Flux d'un mois (charges à répartir, part de chacun) — réutilisable pour un mois quelconque ----------
 function premierJourDuMois(mois) {
   const [a, m] = mois.split('-').map(Number);
   return new Date(a, m - 1, 1);
+}
+
+// "Impacte le mois suivant" : decouverte trop tard pour peser sur son propre mois (ex: prime creche
+// connue en fin de mois), on reprend alors les jours/ajustement du mois precedent pour peser ici.
+// Coeur commun a calculerFluxMois (repartition par adulte) et calculerPostesMois (vue annuelle).
+function joursRetenusChargeEnfant(charge, joursBase, joursBasePrec, ajustParId, ajustPrecParId) {
+  return charge.impact_mois_suivant
+    ? Math.max(0, joursBasePrec + (ajustPrecParId[charge.id] || 0))
+    : Math.max(0, joursBase + (ajustParId[charge.id] || 0));
 }
 
 async function calculerFluxMois(mois) {
@@ -819,16 +834,12 @@ async function calculerFluxMois(mois) {
   const postes = [];
   _chargesFixesCache.forEach(c => postes.push({ montant: montantsChargesFixes[c.id].montant, repartition: c.repartition }));
   _chargesEnfantsCache.forEach(c => {
-    // "Impacte le mois suivant" : decouverte trop tard pour peser sur son propre mois (ex: prime creche
-    // connue en fin de mois), on reprend alors les jours/ajustement du mois precedent pour peser ici.
-    const joursRetenus = c.impact_mois_suivant
-      ? Math.max(0, joursBasePrec + (ajustEnfantsPrecParId[c.id] || 0))
-      : Math.max(0, joursBase + (ajustEnfantsParId[c.id] || 0));
+    const joursRetenus = joursRetenusChargeEnfant(c, joursBase, joursBasePrec, ajustEnfantsParId, ajustEnfantsPrecParId);
     postes.push({ montant: joursRetenus * c.prix_jour, repartition: c.repartition });
   });
   _adultes.forEach(m => {
     const t = transportParId[m.id];
-    if (t) postes.push({ montant: t.km_aller * 2 * t.jours_travail_mois * (t.consommation_l_100km / 100) * t.prix_litre, repartition: 'prorata' });
+    if (t) postes.push({ montant: coutCarburant(t), repartition: 'prorata' });
   });
   const totalMois = postes.reduce((s, p) => s + p.montant, 0);
 
@@ -843,7 +854,7 @@ async function calculerFluxMois(mois) {
   _adultes.forEach(m => dejaPaye[m.id] = 0);
   _adultes.forEach(m => {
     const t = transportParId[m.id];
-    if (t) dejaPaye[m.id] += t.km_aller * 2 * t.jours_travail_mois * (t.consommation_l_100km / 100) * t.prix_litre;
+    if (t) dejaPaye[m.id] += coutCarburant(t);
   });
 
   // ---- Solde des dépenses variables du mois précédent (crédité/débité sur ce mois) ----
@@ -974,15 +985,16 @@ const POSTES_ANNUEL = [
 const NOMS_MOIS_COURT = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Août', 'Sep', 'Oct', 'Nov', 'Déc'];
 const NOMS_MOIS_LONG = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
 
-async function calculerPostesMois(mois) {
+// transportData : lignes de budget_transport deja chargees (identiques pour les 12 mois de la
+// vue annuelle, pas la peine de les requeter a nouveau a chaque mois — voir calculerAnnee).
+async function calculerPostesMois(mois, transportData) {
   const joursBase = joursOuvresDuMois(premierJourDuMois(mois));
   const moisPrec = moisPrecedentStr(mois);
   const joursBasePrec = joursOuvresDuMois(premierJourDuMois(moisPrec));
-  const [montantsChargesFixes, ajustEnfantsRes, ajustEnfantsPrecRes, transportRes, depVarRes] = await Promise.all([
+  const [montantsChargesFixes, ajustEnfantsRes, ajustEnfantsPrecRes, depVarRes] = await Promise.all([
     resoudreMontantsChargesFixes(mois),
     sb.from('budget_charges_enfants_ajustement').select('*').eq('mois', mois),
     sb.from('budget_charges_enfants_ajustement').select('*').eq('mois', moisPrec),
-    sb.from('budget_transport').select('*'),
     sb.from('budget_depenses_variables').select('montant').gte('date', mois + '-01').lt('date', moisSuivantStr(mois))
   ]);
 
@@ -990,14 +1002,10 @@ async function calculerPostesMois(mois) {
 
   const ajustParId = Object.fromEntries((ajustEnfantsRes.data || []).map(a => [a.charge_id, a.ajustement_jours]));
   const ajustPrecParId = Object.fromEntries((ajustEnfantsPrecRes.data || []).map(a => [a.charge_id, a.ajustement_jours]));
-  const chargesEnfants = _chargesEnfantsCache.reduce((s, c) => {
-    const joursRetenus = c.impact_mois_suivant
-      ? Math.max(0, joursBasePrec + (ajustPrecParId[c.id] || 0))
-      : Math.max(0, joursBase + (ajustParId[c.id] || 0));
-    return s + joursRetenus * c.prix_jour;
-  }, 0);
+  const chargesEnfants = _chargesEnfantsCache.reduce((s, c) =>
+    s + joursRetenusChargeEnfant(c, joursBase, joursBasePrec, ajustParId, ajustPrecParId) * c.prix_jour, 0);
 
-  const carburant = (transportRes.data || []).reduce((s, t) => s + t.km_aller * 2 * t.jours_travail_mois * (t.consommation_l_100km / 100) * t.prix_litre, 0);
+  const carburant = transportData.reduce((s, t) => s + coutCarburant(t), 0);
 
   const depensesVariables = (depVarRes.data || []).reduce((s, d) => s + d.montant, 0);
 
@@ -1006,7 +1014,8 @@ async function calculerPostesMois(mois) {
 
 async function calculerAnnee(annee) {
   const mois12 = [...Array(12)].map((_, i) => `${annee}-${String(i + 1).padStart(2, '0')}`);
-  return Promise.all(mois12.map(m => calculerPostesMois(m)));
+  const { data: transportData } = await sb.from('budget_transport').select('*');
+  return Promise.all(mois12.map(m => calculerPostesMois(m, transportData || [])));
 }
 
 function niceMax(valeur) {
