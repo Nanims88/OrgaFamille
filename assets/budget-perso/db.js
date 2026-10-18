@@ -5,7 +5,8 @@ import { toISODate } from './calc.js';
 
 const DB_NAME = 'budget-perso';
 const DB_VERSION = 1;
-const STORES = ['config', 'transactions', 'dettes', 'virementsHebdo', 'objectifs', 'evenements', 'reglesImport'];
+// Les objectifs vivent dans config.objectifs (pas de store dedie) : seuls ces magasins sont reellement utilises.
+const STORES = ['config', 'transactions', 'dettes', 'virementsHebdo', 'evenements', 'reglesImport'];
 
 let dbPromise = null;
 

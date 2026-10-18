@@ -54,20 +54,6 @@ export function cycleContenant(refDate, jourCycle = 25) {
   return { debut, fin: finDeCycle(debut) };
 }
 
-// Nombre de lundis entre deux dates (inclusif).
-export function compterLundis(debut, fin) {
-  let n = 0;
-  const cur = new Date(debut);
-  cur.setHours(0, 0, 0, 0);
-  const fin2 = new Date(fin);
-  fin2.setHours(0, 0, 0, 0);
-  while (cur <= fin2) {
-    if (cur.getDay() === 1) n++;
-    cur.setDate(cur.getDate() + 1);
-  }
-  return n;
-}
-
 // Liste des lundis (Date) entre deux dates (inclusif).
 export function listerLundis(debut, fin) {
   const lundis = [];
@@ -80,6 +66,11 @@ export function listerLundis(debut, fin) {
     cur.setDate(cur.getDate() + 1);
   }
   return lundis;
+}
+
+// Nombre de lundis entre deux dates (inclusif).
+export function compterLundis(debut, fin) {
+  return listerLundis(debut, fin).length;
 }
 
 export function enveloppeHebdomadaire(budgetCycle, nbLundis) {
@@ -114,8 +105,9 @@ export function affectationFinDeCycle({ resteCycle, coussinActuel, coussinCible 
   return { versementCoussin, versementPretAuto };
 }
 
-// Tableau d'amortissement d'un prêt à mensualité fixe.
-export function tableauAmortissement({ capital, tauxAnnuel, mensualite, maxMois = 600 }) {
+// Coeur commun de l'amortissement a mensualite fixe, avec un versement supplementaire optionnel
+// a un mois donne : tableauAmortissement et simulerVersementSupplementaire n'en sont que des vues.
+function simulerAmortissement({ capital, tauxAnnuel, mensualite, maxMois = 600, versementExtra = 0, moisApplication = null }) {
   const tauxMensuel = tauxAnnuel / 100 / 12;
   let restant = capital;
   const tableau = [];
@@ -124,8 +116,8 @@ export function tableauAmortissement({ capital, tauxAnnuel, mensualite, maxMois 
   while (restant > 0.01 && mois < maxMois) {
     mois++;
     const interet = round2(restant * tauxMensuel);
-    let capitalRembourse = round2(mensualite - interet);
-    let paiement = mensualite;
+    let paiement = mois === moisApplication ? round2(mensualite + versementExtra) : mensualite;
+    let capitalRembourse = round2(paiement - interet);
     if (capitalRembourse >= restant) {
       capitalRembourse = restant;
       paiement = round2(restant + interet);
@@ -139,31 +131,20 @@ export function tableauAmortissement({ capital, tauxAnnuel, mensualite, maxMois 
   return { tableau, nbMensualites: mois, interetsTotal: round2(interetsTotal) };
 }
 
+// Tableau d'amortissement d'un prêt à mensualité fixe.
+export function tableauAmortissement({ capital, tauxAnnuel, mensualite, maxMois = 600 }) {
+  return simulerAmortissement({ capital, tauxAnnuel, mensualite, maxMois });
+}
+
 // Simulateur "et si je verse X en plus" à un mois donné (défaut : dès le mois 1).
 export function simulerVersementSupplementaire({ capital, tauxAnnuel, mensualite, versementExtra, moisApplication = 1 }) {
   const base = tableauAmortissement({ capital, tauxAnnuel, mensualite });
-  const tauxMensuel = tauxAnnuel / 100 / 12;
-  let restant = capital;
-  let mois = 0;
-  let interetsTotal = 0;
-  while (restant > 0.01 && mois < 600) {
-    mois++;
-    const interet = round2(restant * tauxMensuel);
-    let paye = mensualite;
-    if (mois === moisApplication) paye = round2(paye + versementExtra);
-    let capitalRembourse = round2(paye - interet);
-    if (capitalRembourse >= restant) {
-      restant = 0;
-    } else {
-      restant = round2(restant - capitalRembourse);
-    }
-    interetsTotal = round2(interetsTotal + interet);
-  }
+  const avecExtra = simulerAmortissement({ capital, tauxAnnuel, mensualite, versementExtra, moisApplication });
   return {
     nbMensualitesBase: base.nbMensualites,
-    nbMensualitesAvecExtra: mois,
-    moisGagnes: base.nbMensualites - mois,
-    interetsEconomises: round2(base.interetsTotal - interetsTotal)
+    nbMensualitesAvecExtra: avecExtra.nbMensualites,
+    moisGagnes: base.nbMensualites - avecExtra.nbMensualites,
+    interetsEconomises: round2(base.interetsTotal - avecExtra.interetsTotal)
   };
 }
 

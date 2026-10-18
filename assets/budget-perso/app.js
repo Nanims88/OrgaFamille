@@ -284,9 +284,11 @@ function semaineCouranteParmi(semaines) {
 // total du cycle moins ce qui a deja ete reellement vire, jamais negatif (un virement d'avance ne
 // doit pas donner l'impression qu'on doit "moins que rien"). Utilise a la fois par le "reste a
 // vivre reel" de l'accueil et par la projection de tresorerie, pour ne jamais diverger.
-async function virementsEnveloppeRestants() {
+// Accepte des semaines deja calculees (calculerSemainesCycle) pour eviter de refaire toute la
+// boucle hebdo quand l'appelant les a deja sous la main (ex: renderAccueil).
+async function virementsEnveloppeRestants(semainesPrecalculees) {
   const { budgetCycleEnveloppe } = await infosCycle();
-  const semaines = await calculerSemainesCycle();
+  const semaines = semainesPrecalculees || await calculerSemainesCycle();
   const dejaVire = C.round2(semaines.filter(s => !s.neutralisee && s.fait).reduce((s, sem) => s + sem.montantVirement, 0));
   const virementsRestants = Math.max(0, C.round2(budgetCycleEnveloppe - dejaVire));
   const prochainLundiPasFait = semaines.find(s => !s.neutralisee && !s.fait) || null;
@@ -295,7 +297,11 @@ async function virementsEnveloppeRestants() {
 
 async function renderAccueil(zone) {
   const { config, debut, fin, enveloppeHebdo, budgetCycleEnveloppe } = await infosCycle();
-  const { virementsRestants, semaines } = await virementsEnveloppeRestants();
+  // Calculee une seule fois puis transmise : virementsEnveloppeRestants, echeancesProchaines et
+  // calculerProjectionAuto en ont chacun besoin, et chacune refaisait la meme boucle hebdo sinon.
+  const semaines = await calculerSemainesCycle();
+  const virementsInfo = await virementsEnveloppeRestants(semaines);
+  const { virementsRestants } = virementsInfo;
   const semaine = semaineCouranteParmi(semaines)
     || { dateLundi: config.dateDemarrage, reste: budgetCycleEnveloppe, disponible: 0, depense: 0, virementSuggere: enveloppeHebdo, fait: false };
   const transactionsCycle = (await transactionsEntre(C.toISODate(debut), C.toISODate(fin))).filter(t => t.date >= config.dateDemarrage);
@@ -303,8 +309,8 @@ async function renderAccueil(zone) {
   const depenseCycle = totalDepenses(transactionsCycle, id => idsEnveloppe.has(id));
   const resteCycle = C.round2(budgetCycleEnveloppe - depenseCycle);
 
-  const echeances14j = await echeancesProchaines(14);
-  const projection = await calculerProjectionAuto();
+  const echeances14j = await echeancesProchaines(14, virementsInfo);
+  const projection = await calculerProjectionAuto(semaines);
 
   const pourcentSemaine = semaine.disponible > 0 ? Math.min(100, Math.max(0, (semaine.reste / semaine.disponible) * 100)) : 0;
   const classeJaugeSemaine = semaine.reste < 0 ? 'danger' : (pourcentSemaine < 25 ? 'attention' : '');
@@ -402,7 +408,9 @@ async function transactionsHorsEnveloppeEntre(debutISO, finISO, idsEnveloppe) {
   return toutes.filter(t => t.compte === 'principal' && t.date >= debutISO && t.date <= finISO && !idsEnveloppe.has(t.categorie));
 }
 
-async function echeancesProchaines(nbJours) {
+// virementsInfoPrecalcule : resultat deja obtenu de virementsEnveloppeRestants(), pour eviter de
+// relancer toute la boucle hebdo quand l'appelant l'a deja (ex: renderAccueil, calculerProjectionAuto).
+async function echeancesProchaines(nbJours, virementsInfoPrecalcule) {
   const config = await DB.getConfig();
   const debut = new Date();
   const fin = C.addDays(debut, nbJours);
@@ -424,7 +432,7 @@ async function echeancesProchaines(nbJours) {
   // une bonne partie de ce qui va reellement etre depense. Ajoute en une seule fois sur le
   // prochain lundi pas encore vire (voir virementsEnveloppeRestants : les suggestions
   // hebdomadaires sont cumulatives, jamais additionnees entre elles).
-  const { virementsRestants, prochainLundiPasFait } = await virementsEnveloppeRestants();
+  const { virementsRestants, prochainLundiPasFait } = virementsInfoPrecalcule || await virementsEnveloppeRestants();
   if (virementsRestants > 0 && prochainLundiPasFait && prochainLundiPasFait.dateLundi >= auj() && prochainLundiPasFait.dateLundi <= C.toISODate(fin)) {
     liste.push({ date: prochainLundiPasFait.dateLundi, libelle: 'Virements enveloppe restants du cycle', montant: -virementsRestants });
   }
@@ -432,10 +440,13 @@ async function echeancesProchaines(nbJours) {
   return liste.sort((a, b) => a.date.localeCompare(b.date));
 }
 
-async function calculerProjectionAuto() {
+// semainesPrecalculees : resultat deja obtenu de calculerSemainesCycle(), pour eviter de la
+// relancer quand l'appelant l'a deja (ex: renderAccueil).
+async function calculerProjectionAuto(semainesPrecalculees) {
   const config = await DB.getConfig();
   const { montant: soldeInitial } = await soldePrincipalActuel(config);
-  const mouvements = (await echeancesProchaines(31)).map(e => ({ date: e.date, libelle: e.libelle, montant: e.montant }));
+  const virementsInfo = await virementsEnveloppeRestants(semainesPrecalculees);
+  const mouvements = (await echeancesProchaines(31, virementsInfo)).map(e => ({ date: e.date, libelle: e.libelle, montant: e.montant }));
   return C.projectionTresorerie({
     soldeInitial,
     dateDebut: auj(),
@@ -759,9 +770,6 @@ async function renderCycle(zone) {
 async function renderEcheancier(zone) {
   const config = await DB.getConfig();
   const echeances30j = await echeancesProchaines(30);
-
-  const mouvementsManuelsKey = 'mouvements-manuels';
-  if (!zone.dataset.mouvements) zone.dataset.mouvements = JSON.stringify([]);
 
   zone.innerHTML = `
     <h2 class="section-titre" style="margin-top:0">Echeancier (30 jours)</h2>
@@ -1165,7 +1173,6 @@ function normaliserMontant(s) {
 
 async function renderDonnees(zone) {
   const config = await DB.getConfig();
-  const regles = await DB.getAll('reglesImport');
   zone.innerHTML = `
     <h2 class="section-titre" style="margin-top:0">Import CSV bancaire</h2>
     <div class="carte">
