@@ -259,7 +259,7 @@ async function calculerSemainesCycle() {
     semaines.push({
       dateLundi, dateFinSemaine, disponible, reste, depense, montantVirement, virementSuggere,
       suggestionTheorique, reduitPourDecouvert, fait: !!virement, idVirement: virement ? virement.id : null,
-      aujourdhui, neutralisee: false
+      aujourdhui, neutralisee: false, budgetEffectif, reportPrecedent
     });
     reportPrecedent = reste;
     // Les virements deja faits sont deja deduits de soldeReel (transaction reelle) : ne pas les
@@ -648,8 +648,9 @@ async function renderSemaine(zone) {
           <span>${eur(l.reste)} restant</span>
         </div>
         <div class="jauge-fond"><div class="jauge-barre ${l.reste < 0 ? 'danger' : ''}" style="width:${l.disponible > 0 ? Math.min(100, Math.max(0, l.reste / l.disponible * 100)) : 0}%"></div></div>
+        ${l.reportPrecedent ? `<p style="font-size:.78rem;color:var(--ink-soft);margin:6px 0 0">Budget de la semaine : ${eur(l.budgetEffectif)} + report des semaines precedentes pas encore virees : ${eur(l.reportPrecedent)}</p>` : ''}
         <p style="font-size:.82rem;color:var(--ink-soft);margin:8px 0 0">
-          Disponible : ${eur(l.disponible)} (virement ${l.fait ? eur(l.montantVirement) : 'a faire, ' + eur(l.virementSuggere)}) — Depense : ${eur(l.depense)}
+          Disponible (cumule) : ${eur(l.disponible)} (virement ${l.fait ? eur(l.montantVirement) : 'a faire, ' + eur(l.virementSuggere)}) — Depense : ${eur(l.depense)}
           ${l.fait ? `<a href="#" class="virement-modifier" data-id="${l.idVirement}" data-montant="${l.montantVirement}" style="margin-left:8px">✏️ Modifier</a> <a href="#" class="virement-annuler" data-id="${l.idVirement}" style="margin-left:4px">🗑️ Annuler</a>` : ''}
         </p>
         ${l.reduitPourDecouvert ? `<p style="font-size:.75rem;color:var(--danger);margin:4px 0 0">⚠️ Reduit pour respecter le decouvert autorise (theorique : ${eur(l.suggestionTheorique)})</p>` : ''}
