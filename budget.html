@@ -923,15 +923,21 @@ async function chargerResume() {
   const moisPrec = moisPrecedentStr(mois);
   const { data: statutsData } = await sb.from('budget_charges_fixes_statut').select('*').eq('mois', mois);
   const statutParCharge = Object.fromEntries((statutsData || []).map(s => [s.charge_id, s.paye]));
+  // Montant reellement verse par chacun, declare une fois le virement fait : une fois present, ce
+  // montant fait foi pour ce mois-la (meme si une charge change ensuite), plutot que le recalcul
+  // theorique qui changerait retroactivement un virement deja effectue.
+  const { data: versementsData } = await sb.from('budget_versements').select('*').eq('mois', mois);
+  const versementParId = Object.fromEntries((versementsData || []).map(v => [v.membre_id, v.montant]));
 
-  const { totalMois, totalCommun, partTheorique, dejaPaye, soldeVariablePrec, solde, totalDepensesPrec, totalAVerser } = await calculerFluxMois(mois);
-  const soldeFinMois = _soldeDebutMoisCourant - totalCommun + totalAVerser;
+  const { totalMois, totalCommun, partTheorique, dejaPaye, soldeVariablePrec, solde, totalDepensesPrec } = await calculerFluxMois(mois);
+  const totalAVerserReel = _adultes.reduce((s, m) => s + (versementParId[m.id] !== undefined ? versementParId[m.id] : Math.ceil(Math.max(0, solde[m.id]))), 0);
+  const soldeFinMois = _soldeDebutMoisCourant - totalCommun + totalAVerserReel;
 
   const resteAPrelever = _chargesFixesCache.reduce((s, c) => s + (statutParCharge[c.id] ? 0 : _montantsChargesFixes[c.id].montant), 0);
 
   document.getElementById('zone-resume-total').innerHTML = `
     <p><strong>Reste à prélever sur le compte</strong> (charges fixes non encore pointées) : <span style="font-weight:800;">${resteAPrelever.toFixed(2)} €</span></p>
-    <p style="margin-top:6px;"><strong>Solde prévisionnel en fin de mois</strong> (avec les ${totalAVerser.toFixed(2)} € à verser par chacun) : <span style="font-weight:800;color:${soldeFinMois >= 0 ? 'var(--ink)' : 'var(--louis)'}">${soldeFinMois.toFixed(2)} €</span></p>
+    <p style="margin-top:6px;"><strong>Solde prévisionnel en fin de mois</strong> (avec les ${totalAVerserReel.toFixed(2)} € à verser par chacun) : <span style="font-weight:800;color:${soldeFinMois >= 0 ? 'var(--ink)' : 'var(--louis)'}">${soldeFinMois.toFixed(2)} €</span></p>
     <p style="margin-top:8px;">
       <a href="#" onclick="basculerSection('detail-resume');return false;" id="btn-section-detail-resume" data-ouvert="Masquer le détail du calcul" data-ferme="Voir le détail du calcul" style="font-size:0.82rem;color:var(--ink-soft);">Voir le détail du calcul</a>
     </p>
@@ -956,22 +962,66 @@ async function chargerResume() {
   `;
 
   document.getElementById('zone-resume-personnes').innerHTML = `
-      ${_adultes.map(m => `
+      ${_adultes.map(m => {
+        const versement = versementParId[m.id];
+        const suggestionActuelle = Math.ceil(Math.max(0, solde[m.id]));
+        const ecart = versement !== undefined ? Math.round((suggestionActuelle - versement) * 100) / 100 : 0;
+        return `
           <div class="carte" style="border-left:4px solid ${m.couleur}">
             <strong>${m.icone} ${m.nom}</strong>
             <p style="margin:8px 0 2px;font-size:0.85rem;color:var(--ink-soft);">Part théorique (charges + carburant) : ${partTheorique[m.id].toFixed(2)} €</p>
             <p style="margin:2px 0;font-size:0.85rem;color:var(--ink-soft);">Dont carburant déjà couvert : ${dejaPaye[m.id].toFixed(2)} €</p>
             <p style="margin:2px 0 8px;font-size:0.85rem;color:var(--ink-soft);">Crédit/débit dépenses variables du mois précédent : ${soldeVariablePrec[m.id] >= 0 ? '+' : ''}${soldeVariablePrec[m.id].toFixed(2)} €</p>
-            <p style="font-size:1.3rem;font-weight:800;color:${solde[m.id] >= 0 ? 'var(--maman)' : 'var(--louis)'}">
-              ${solde[m.id] >= 0 ? 'Doit verser : ' : 'A trop versé : '} ${Math.ceil(Math.abs(solde[m.id]))} €
-            </p>
+            ${versement !== undefined ? `
+              <p style="font-size:1.3rem;font-weight:800;color:var(--ink);">✅ Versé : ${versement.toFixed(2)} €</p>
+              ${Math.abs(ecart) > 0.01 ? `<p style="margin-top:4px;font-size:0.8rem;color:var(--louis);">⚠️ Le calcul actuel suggère ${suggestionActuelle} € (écart ${ecart >= 0 ? '+' : ''}${ecart.toFixed(2)} € depuis la déclaration — une charge a changé). Ce virement reste figé pour ce mois ; à toi de voir si le mois suivant doit compenser.</p>` : ''}
+              <div style="margin-top:8px;display:flex;gap:6px;">
+                <button class="btn btn-clair" onclick="modifierVersement('${m.id}', ${versement})">✏️ Modifier</button>
+                <button class="btn btn-discret" onclick="annulerVersement('${m.id}')">Annuler</button>
+              </div>
+            ` : `
+              <p style="font-size:1.3rem;font-weight:800;color:${solde[m.id] >= 0 ? 'var(--maman)' : 'var(--louis)'}">
+                ${solde[m.id] >= 0 ? 'Doit verser : ' : 'A trop versé : '} ${Math.ceil(Math.abs(solde[m.id]))} €
+              </p>
+              <button class="btn" style="margin-top:8px;" onclick="declarerVersement('${m.id}', ${suggestionActuelle})">J'ai versé ce montant</button>
+            `}
           </div>
-        `).join('')}
+        `;
+      }).join('')}
   `;
 }
 
 async function toggleChargeFixePointee(chargeId, mois, coche) {
   await sb.from('budget_charges_fixes_statut').upsert({ charge_id: chargeId, mois, paye: coche }, { onConflict: 'charge_id,mois' });
+  chargerResume();
+}
+
+// ---------- Versement reel de chacun (fige le montant "a verser" du mois, independamment des
+// recalculs theoriques ulterieurs si une charge change en cours de mois) ----------
+async function declarerVersement(membreId, montantSuggere) {
+  const saisie = prompt('Montant que tu as reellement verse ce mois-ci :', montantSuggere);
+  if (saisie === null) return;
+  const montant = parseFloat(saisie);
+  if (isNaN(montant)) return;
+  const mois = moisAAAAMM(moisConsulte());
+  await sb.from('budget_versements').upsert({ membre_id: membreId, mois, montant }, { onConflict: 'membre_id,mois' });
+  chargerResume();
+}
+
+async function modifierVersement(membreId, montantActuel) {
+  const saisie = prompt('Nouveau montant verse pour ce mois :', montantActuel);
+  if (saisie === null) return;
+  const montant = parseFloat(saisie);
+  if (isNaN(montant)) return;
+  const mois = moisAAAAMM(moisConsulte());
+  await sb.from('budget_versements').upsert({ membre_id: membreId, mois, montant }, { onConflict: 'membre_id,mois' });
+  chargerResume();
+}
+
+async function annulerVersement(membreId) {
+  if (!confirm('Annuler la declaration de versement ? Le montant redeviendra une suggestion recalculee.')) return;
+  const mois = moisAAAAMM(moisConsulte());
+  await sb.from('budget_versements').delete().eq('membre_id', membreId).eq('mois', mois);
   chargerResume();
 }
 
