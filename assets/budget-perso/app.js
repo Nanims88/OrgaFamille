@@ -349,7 +349,7 @@ async function renderAccueil(zone) {
       </div>
     </div>
 
-    ${config.dateDemarrage > C.toISODate(debut) ? `<p style="font-size:.78rem;color:var(--ink-soft);margin:-6px 0 14px">Suivi actif depuis le ${dateFR(config.dateDemarrage)} — rien avant n'est compte ni a rattraper.</p>` : ''}
+    ${config.dateDemarrage > C.toISODate(debut) ? `<p style="font-size:.78rem;color:var(--ink-soft);margin:-6px 0 14px">Suivi actif depuis le ${dateFR(config.dateDemarrage)} — rien avant n'est compté.</p>` : ''}
 
     <div class="carte jauge-ligne">
       <div class="jauge-entete"><span>Semaine du ${dateFR(semaine.dateLundi)}</span><span>${eur(semaine.reste)} restant</span></div>
@@ -635,7 +635,7 @@ async function renderSemaine(zone) {
   const virements = await DB.getAll('virementsHebdo');
 
   zone.innerHTML = `
-    <p style="color:var(--ink-soft)">Cycle du ${dateFR(C.toISODate(debut))} au ${dateFR(C.toISODate(fin))} — ${lignes.length} lundi(s), enveloppe theorique ${eur(enveloppeHebdo)}/semaine. Suivi actif depuis le ${dateFR(config.dateDemarrage)}.</p>
+    <p style="color:var(--ink-soft)">Cycle du ${dateFR(C.toISODate(debut))} au ${dateFR(C.toISODate(fin))} — enveloppe ${eur(enveloppeHebdo)}/semaine. Suivi depuis le ${dateFR(config.dateDemarrage)}.</p>
     ${lignes.map(l => l.neutralisee ? `
       <div class="carte jauge-ligne" style="opacity:.55">
         <div class="jauge-entete"><span>Semaine du ${dateFR(l.dateLundi)}</span><span>avant le demarrage</span></div>

@@ -207,7 +207,7 @@
         <button class="btn" type="submit" id="ce-submit">Ajouter</button>
         <button class="btn btn-discret" type="button" id="ce-annuler" style="display:none;" onclick="annulerEditionChargeEnfant()">Annuler</button>
       </form>
-      <p style="color:var(--ink-soft);font-size:0.85rem;margin-top:8px;">"Impacte le mois suivant" : utile pour une charge connue trop tard (ex : prime crèche calculée en fin de mois). Le calcul reste identique (jours ouvrés × prix/jour) mais compte dans le total du mois d'après.</p>
+      <p style="color:var(--ink-soft);font-size:0.85rem;margin-top:8px;">"Impacte le mois suivant" : pour une charge connue trop tard (ex : prime crèche). Compte dans le total du mois d'après.</p>
     </div>
 
     <div class="carte" id="zone-resume-fixes" style="margin-top:16px;"></div>
@@ -218,7 +218,7 @@
       <button class="btn btn-clair" style="font-size:0.8rem;padding:6px 12px;" onclick="basculerSection('charges-fixes')" id="btn-section-charges-fixes">Afficher</button>
     </h2>
     <div id="section-charges-fixes" style="display:none;">
-      <p style="color:var(--ink-soft);font-size:0.9rem;margin-top:-6px;">Utilise un montant négatif pour une entrée d'argent (CAF, aides...) — elle viendra en déduction du total à répartir.</p>
+      <p style="color:var(--ink-soft);font-size:0.9rem;margin-top:-6px;">Montant négatif = entrée d'argent (CAF, aides...), déduite du total à répartir.</p>
       <div class="carte">
         <strong id="cf-titre-form">Ajouter une charge fixe</strong>
         <form class="mini" id="form-charge-fixe">
@@ -242,7 +242,7 @@
     </h2>
     <div id="section-charges-enfants" style="display:none;">
       <div class="grille-cartes" id="zone-charges-enfants-resume"></div>
-      <p style="color:var(--ink-soft);font-size:0.9rem;margin:16px 0 -6px;">Jours ouvrés du mois calculés automatiquement (lundi-vendredi), ajustables si besoin (absences, jours en plus...).</p>
+      <p style="color:var(--ink-soft);font-size:0.9rem;margin:16px 0 -6px;">Jours ouvrés calculés automatiquement (lundi-vendredi), ajustables si besoin.</p>
       <div class="grille-cartes" id="zone-charges-enfants" style="margin-top:12px;"></div>
     </div>
 
@@ -251,7 +251,7 @@
       <button class="btn btn-clair" style="font-size:0.8rem;padding:6px 12px;" onclick="basculerSection('salaires')" id="btn-section-salaires">Afficher</button>
     </h2>
     <div id="section-salaires" style="display:none;">
-      <p style="color:var(--ink-soft);font-size:0.9rem;margin-top:-6px;">Sert de base au calcul de la répartition "au prorata" sur les autres postes. Enregistré une fois, valable pour tous les mois jusqu'à modification.</p>
+      <p style="color:var(--ink-soft);font-size:0.9rem;margin-top:-6px;">Base du calcul "au prorata" des autres postes. Valable jusqu'à modification.</p>
       <div class="grille-cartes" id="zone-salaires"></div>
     </div>
 
@@ -269,7 +269,7 @@
       <button class="btn btn-clair" style="font-size:0.8rem;padding:6px 12px;" onclick="basculerSection('depenses-variables')" id="btn-section-depenses-variables">Afficher</button>
     </h2>
     <div id="section-depenses-variables" style="display:none;">
-      <p style="color:var(--ink-soft);font-size:0.9rem;margin-top:-6px;">À titre informatif. Ces dépenses viennent en crédit/débit sur le montant à verser du <strong>mois suivant</strong>.</p>
+      <p style="color:var(--ink-soft);font-size:0.9rem;margin-top:-6px;">À titre informatif — créditées/débitées sur le montant à verser du <strong>mois suivant</strong>.</p>
       <div class="grille-cartes" id="zone-depenses"></div>
     </div>
 
@@ -456,7 +456,7 @@ async function chargerSalaires() {
         <input type="number" step="0.01" name="salaire" value="${_salaires[m.id] || ''}" placeholder="Salaire net mensuel €">
         <button class="btn" type="submit">Figer pour ce mois</button>
       </form>
-      ${suggestion[m.id] ? '<p style="margin-top:6px;color:var(--ink-soft);font-size:0.8rem;font-style:italic;">Non figé pour ce mois — valeur reprise du dernier mois connu, clique pour confirmer.</p>' : ''}
+      ${suggestion[m.id] ? '<p style="margin-top:6px;color:var(--ink-soft);font-size:0.8rem;font-style:italic;">Non figé — valeur reprise du dernier mois connu, clique pour confirmer.</p>' : ''}
       <p style="margin-top:8px;color:var(--ink-soft);font-size:0.9rem;">Part au prorata : <strong>${Math.round((_pourcentages[m.id] || 0) * 100)}%</strong></p>
     </div>
   `).join('');
@@ -974,7 +974,7 @@ async function chargerResume() {
             <p style="margin:2px 0 8px;font-size:0.85rem;color:var(--ink-soft);">Crédit/débit dépenses variables du mois précédent : ${soldeVariablePrec[m.id] >= 0 ? '+' : ''}${soldeVariablePrec[m.id].toFixed(2)} €</p>
             ${versement !== undefined ? `
               <p style="font-size:1.3rem;font-weight:800;color:var(--ink);">✅ Versé : ${versement.toFixed(2)} €</p>
-              ${Math.abs(ecart) > 0.01 ? `<p style="margin-top:4px;font-size:0.8rem;color:var(--louis);">⚠️ Le calcul actuel suggère ${suggestionActuelle} € (écart ${ecart >= 0 ? '+' : ''}${ecart.toFixed(2)} € depuis la déclaration — une charge a changé). Ce virement reste figé pour ce mois ; à toi de voir si le mois suivant doit compenser.</p>` : ''}
+              ${Math.abs(ecart) > 0.01 ? `<p style="margin-top:4px;font-size:0.8rem;color:var(--louis);">⚠️ Calcul actuel : ${suggestionActuelle} € (écart ${ecart >= 0 ? '+' : ''}${ecart.toFixed(2)} €, charge modifiée depuis). Virement figé — à régulariser toi-même si besoin.</p>` : ''}
               <div style="margin-top:8px;display:flex;gap:6px;">
                 <button class="btn btn-clair" onclick="modifierVersement('${m.id}', ${versement})">✏️ Modifier</button>
                 <button class="btn btn-discret" onclick="annulerVersement('${m.id}')">Annuler</button>
