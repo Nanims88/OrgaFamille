@@ -202,14 +202,23 @@ function seuilLundiSuivi(config) {
 // Le montant suggere pour une semaine pas encore faite est plafonne par le decouvert autorise
 // reellement disponible aujourd'hui : jamais de suggestion qu'on ne pourrait pas se permettre.
 async function calculerSemainesCycle() {
-  const { config, debut, fin, enveloppeHebdo } = await infosCycle();
+  const { config, debut, fin, budgetCycleEnveloppe } = await infosCycle();
   const seuil = seuilLundiSuivi(config);
   const lundis = C.listerLundis(debut, fin);
   const virements = await DB.getAll('virementsHebdo');
   const idsEnveloppe = new Set(config.categories.filter(c => c.enveloppe).map(c => c.id));
   const { montant: soldeReel } = await soldePrincipalActuel(config);
 
-  let reportPrecedent = 0;
+  // Ce qui reste du budget du cycle (une fois deduits les virements deja faits) est reparti a
+  // parts egales sur les semaines encore a faire : si 150€ restent pour 3 semaines, chacune
+  // suggere 50€, pas 50 puis 100 puis 150 (ca s'accumulait au lieu de se reequilibrer).
+  const lundisActifsISO = lundis.map(l => C.toISODate(l)).filter(d => d >= seuil);
+  const virementParLundi = Object.fromEntries(virements.map(v => [v.dateLundi, v.montantVirement]));
+  const dejaVire = lundisActifsISO.reduce((s, d) => s + (virementParLundi[d] !== undefined ? virementParLundi[d] : 0), 0);
+  const nbSemainesRestantes = lundisActifsISO.filter(d => virementParLundi[d] === undefined).length;
+  const montantRestantCycle = Math.max(0, C.round2(budgetCycleEnveloppe - dejaVire));
+  const montantParSemaineRestante = nbSemainesRestantes > 0 ? C.round2(montantRestantCycle / nbSemainesRestantes) : 0;
+
   // Diminue au fil des semaines pas encore faites, pour ne jamais plafonner deux virements
   // sur la meme marge : sinon chaque semaine se croit seule a disposer du solde d'aujourd'hui.
   let soldeProjete = soldeReel;
@@ -232,12 +241,12 @@ async function calculerSemainesCycle() {
     const depense = totalDepenses(transactionsSemaine, id => idsEnveloppe.has(id));
     const virement = virements.find(v => v.dateLundi === dateLundi);
     const montantVirement = virement ? virement.montantVirement : null;
-    const budgetEffectif = montantVirement !== null ? montantVirement : enveloppeHebdo;
+    const budgetEffectif = montantVirement !== null ? montantVirement : montantParSemaineRestante;
     // Une fois le virement fait, l'argent est considere comme depense pour son usage (ex. Boursorama
     // non suivi au jour le jour) meme si rien n'est saisi ensuite : on ne le compte pas deux fois
     // en le reportant sur la semaine suivante.
     const depenseEffective = virement ? Math.max(depense, montantVirement) : depense;
-    const { disponible, reste } = C.soldeSemaine({ budgetSemaine: budgetEffectif, reportPrecedent, depense: depenseEffective });
+    const { disponible, reste } = C.soldeSemaine({ budgetSemaine: budgetEffectif, depense: depenseEffective });
     // Pas encore vire : le montant suggere tient compte des saisies deja faites cette semaine
     // (se reajuste tout seul) et ne depasse jamais ce que le decouvert autorise permet.
     const suggestionTheorique = virement ? montantVirement : Math.max(0, reste);
@@ -259,9 +268,8 @@ async function calculerSemainesCycle() {
     semaines.push({
       dateLundi, dateFinSemaine, disponible, reste, depense, montantVirement, virementSuggere,
       suggestionTheorique, reduitPourDecouvert, fait: !!virement, idVirement: virement ? virement.id : null,
-      aujourdhui, neutralisee: false, budgetEffectif, reportPrecedent
+      aujourdhui, neutralisee: false, budgetEffectif
     });
-    reportPrecedent = reste;
     // Les virements deja faits sont deja deduits de soldeReel (transaction reelle) : ne pas les
     // soustraire une 2e fois. Seuls les virements pas-encore-faits grignotent la marge projetee.
     if (!virement) soldeProjete = C.round2(soldeProjete - virementSuggere);
@@ -430,8 +438,8 @@ async function echeancesProchaines(nbJours, virementsInfoPrecalcule) {
   // Ce qui reste a virer vers l'enveloppe pour le reste du cycle est aussi de l'argent qui va
   // sortir du compte principal : sans lui, l'echeancier et la projection de tresorerie ignorent
   // une bonne partie de ce qui va reellement etre depense. Ajoute en une seule fois sur le
-  // prochain lundi pas encore vire (voir virementsEnveloppeRestants : les suggestions
-  // hebdomadaires sont cumulatives, jamais additionnees entre elles).
+  // prochain lundi pas encore vire plutot que d'additionner les suggestions hebdomadaires :
+  // plus prudent pour une projection (tout peut sortir d'un coup si rien n'est vire avant).
   const { virementsRestants, prochainLundiPasFait } = virementsInfoPrecalcule || await virementsEnveloppeRestants();
   if (virementsRestants > 0 && prochainLundiPasFait && prochainLundiPasFait.dateLundi >= auj() && prochainLundiPasFait.dateLundi <= C.toISODate(fin)) {
     liste.push({ date: prochainLundiPasFait.dateLundi, libelle: 'Virements enveloppe restants du cycle', montant: -virementsRestants });
@@ -648,9 +656,8 @@ async function renderSemaine(zone) {
           <span>${eur(l.reste)} restant</span>
         </div>
         <div class="jauge-fond"><div class="jauge-barre ${l.reste < 0 ? 'danger' : ''}" style="width:${l.disponible > 0 ? Math.min(100, Math.max(0, l.reste / l.disponible * 100)) : 0}%"></div></div>
-        ${l.reportPrecedent ? `<p style="font-size:.78rem;color:var(--ink-soft);margin:6px 0 0">Budget de la semaine : ${eur(l.budgetEffectif)} + report des semaines precedentes pas encore virees : ${eur(l.reportPrecedent)}</p>` : ''}
         <p style="font-size:.82rem;color:var(--ink-soft);margin:8px 0 0">
-          Disponible (cumule) : ${eur(l.disponible)} (virement ${l.fait ? eur(l.montantVirement) : 'a faire, ' + eur(l.virementSuggere)}) — Depense : ${eur(l.depense)}
+          Disponible : ${eur(l.disponible)} (virement ${l.fait ? eur(l.montantVirement) : 'a faire, ' + eur(l.virementSuggere)}) — Depense : ${eur(l.depense)}
           ${l.fait ? `<a href="#" class="virement-modifier" data-id="${l.idVirement}" data-montant="${l.montantVirement}" style="margin-left:8px">✏️ Modifier</a> <a href="#" class="virement-annuler" data-id="${l.idVirement}" style="margin-left:4px">🗑️ Annuler</a>` : ''}
         </p>
         ${l.reduitPourDecouvert ? `<p style="font-size:.75rem;color:var(--danger);margin:4px 0 0">⚠️ Reduit pour respecter le decouvert autorise (theorique : ${eur(l.suggestionTheorique)})</p>` : ''}
