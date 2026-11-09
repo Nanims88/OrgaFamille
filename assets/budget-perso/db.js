@@ -86,6 +86,10 @@ export const CONFIG_DEFAUT = {
   coussinActuel: 0,
   epargneActuelle: 2800,
   dernierSolde: { montant: 0, date: null },
+  // Solde du compte enveloppe (Boursorama) : saisi manuellement de temps en temps, comme le solde
+  // principal. Permet au "reste a vivre reel" de compter l'argent deja viré mais pas encore
+  // depense la-bas (sinon il reste invisible et sous-estime le reste a vivre).
+  dernierSoldeEnveloppe: { montant: 0, date: null },
   // Tout ce qui precede cette date est neutralise : le cycle en cours continue de servir
   // de reference (dates, nb de lundis...) mais rien avant n'est compte ni a rattraper.
   dateDemarrage: null,
@@ -198,6 +202,10 @@ export async function getConfig() {
   let modifie = false;
   if (!config.dateDemarrage) {
     config.dateDemarrage = toISODate(new Date());
+    modifie = true;
+  }
+  if (!config.dernierSoldeEnveloppe) {
+    config.dernierSoldeEnveloppe = { montant: 0, date: null };
     modifie = true;
   }
   // Categorie ajoutee apres coup : les charges fixes (compte joint, pret...) ne doivent pas

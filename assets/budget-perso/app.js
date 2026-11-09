@@ -330,10 +330,18 @@ async function renderAccueil(zone) {
       ? `<div style="font-size:.75rem;color:var(--ink-soft)">solde saisi ${eur(config.dernierSolde.montant)} le ${dateFR(config.dernierSolde.date)}</div>`
       : `<div style="font-size:.75rem;color:var(--ink-soft)">saisi le ${dateFR(config.dernierSolde.date)}</div>`;
 
-  // Reste a vivre reel : le solde du compte principal, une fois retire tout ce qui doit encore
-  // partir vers l'enveloppe pour financer le reste du cycle (les charges fixes, elles, sont deja
-  // reputees passees en debut de cycle et donc deja dans ce solde).
-  const resteAVivreReel = C.round2(soldePrincipal - virementsRestants);
+  // Solde Boursorama (enveloppe) : purement declaratif, mis a jour manuellement de temps en temps
+  // (contrairement au solde principal, les depenses la-bas ne sont generalement pas saisies au jour
+  // le jour, donc aucune projection fiable n'est possible entre deux saisies).
+  const soldeEnveloppeConnu = !!config.dernierSoldeEnveloppe.date;
+  const soldeEnveloppe = soldeEnveloppeConnu ? config.dernierSoldeEnveloppe.montant : 0;
+
+  // Reste a vivre reel : le solde du compte principal + ce qui reste reellement sur l'enveloppe
+  // (Boursorama) a date, moins tout ce qui doit encore partir vers l'enveloppe pour financer le
+  // reste du cycle (les charges fixes, elles, sont deja reputees passees en debut de cycle et donc
+  // deja dans ce solde). Sans solde Boursorama saisi, l'argent deja viré mais pas encore depense
+  // la-bas reste invisible : le resultat sous-estime alors la realite (jamais l'inverse).
+  const resteAVivreReel = C.round2(soldePrincipal + soldeEnveloppe - virementsRestants);
 
   zone.innerHTML = `
     <div class="stat-grid">
@@ -345,7 +353,8 @@ async function renderAccueil(zone) {
       <div class="stat-carte ${resteAVivreReel < 0 ? 'negatif' : 'positif'}">
         <div class="label">Reste a vivre reel</div>
         <div class="valeur">${eur(resteAVivreReel)}</div>
-        <div style="font-size:.75rem;color:var(--ink-soft)">solde − ${eur(virementsRestants)} de virements enveloppe pas encore faits</div>
+        <div style="font-size:.75rem;color:var(--ink-soft)">solde principal${soldeEnveloppeConnu ? ' + ' + eur(soldeEnveloppe) + ' Boursorama' : ''} − ${eur(virementsRestants)} de virements enveloppe pas encore faits</div>
+        ${!soldeEnveloppeConnu ? '<div style="font-size:.72rem;color:var(--ink-soft);font-style:italic;margin-top:2px">Aucun solde Boursorama saisi — sous-estime l\'argent deja viré mais pas encore depense la-bas. Saisie dans l\'onglet Echeancier.</div>' : ''}
       </div>
       <div class="stat-carte ${resteCycle < 0 ? 'negatif' : 'positif'}">
         <div class="label">Reste du cycle (enveloppe)</div>
@@ -793,6 +802,12 @@ async function renderEcheancier(zone) {
       <div class="champ-groupe"><label>Date du solde</label><input id="proj-date" type="date" value="${config.dernierSolde.date || auj()}"></div>
       <button class="btn" id="proj-enregistrer-solde">Enregistrer ce solde</button>
 
+      <h3 style="margin:18px 0 8px">Solde Boursorama (enveloppe)</h3>
+      <p style="font-size:.78rem;color:var(--ink-soft);margin:-4px 0 10px">A remettre a jour de temps en temps pour que "Reste a vivre reel" compte aussi l'argent deja viré mais pas encore depense la-bas.</p>
+      <div class="champ-groupe"><label>Solde saisi</label><input id="proj-solde-env" type="number" step="0.01" value="${config.dernierSoldeEnveloppe.montant || ''}"></div>
+      <div class="champ-groupe"><label>Date du solde</label><input id="proj-date-env" type="date" value="${config.dernierSoldeEnveloppe.date || auj()}"></div>
+      <button class="btn" id="proj-enregistrer-solde-env">Enregistrer ce solde</button>
+
       <h3 style="margin:18px 0 8px">Mouvements prevus</h3>
       <div id="proj-mouvements"></div>
       <div class="action-flottante">
@@ -824,6 +839,12 @@ async function renderEcheancier(zone) {
     config.dernierSolde = { montant: parseFloat(document.getElementById('proj-solde').value) || 0, date: document.getElementById('proj-date').value };
     await DB.sauverConfig(config);
     alert('Solde enregistre.');
+  });
+
+  document.getElementById('proj-enregistrer-solde-env').addEventListener('click', async () => {
+    config.dernierSoldeEnveloppe = { montant: parseFloat(document.getElementById('proj-solde-env').value) || 0, date: document.getElementById('proj-date-env').value };
+    await DB.sauverConfig(config);
+    alert('Solde Boursorama enregistre.');
   });
 
   document.getElementById('proj-ajouter-mvt').addEventListener('click', () => {
