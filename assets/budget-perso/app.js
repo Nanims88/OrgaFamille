@@ -286,12 +286,12 @@ function semaineCouranteParmi(semaines) {
 }
 
 // Ce qu'il reste reellement a virer vers l'enveloppe pour financer tout le reste du cycle.
-// Attention : le "virement suggere" de chaque semaine (calculerSemainesCycle) est deja cumulatif
-// (il inclut le report des semaines precedentes pas encore virees) -- les additionner entre elles
-// compterait plusieurs fois la meme somme. Le vrai montant encore du est simplement le budget
-// total du cycle moins ce qui a deja ete reellement vire, jamais negatif (un virement d'avance ne
-// doit pas donner l'impression qu'on doit "moins que rien"). Utilise a la fois par le "reste a
-// vivre reel" de l'accueil et par la projection de tresorerie, pour ne jamais diverger.
+// Calcule directement (budget total du cycle moins ce qui a deja ete reellement vire, jamais
+// negatif) plutot qu'en additionnant les "virement suggere" de chaque semaine : ces derniers sont
+// plafonnes par le decouvert autorise (calculerSemainesCycle), donc leur somme peut etre inferieure
+// au vrai montant encore du si le decouvert ne permet pas de tout suggerer d'un coup. Utilise a la
+// fois par le "reste a vivre reel" de l'accueil et par la projection de tresorerie, pour ne jamais
+// diverger.
 // Accepte des semaines deja calculees (calculerSemainesCycle) pour eviter de refaire toute la
 // boucle hebdo quand l'appelant les a deja sous la main (ex: renderAccueil).
 async function virementsEnveloppeRestants(semainesPrecalculees) {
