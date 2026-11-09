@@ -298,9 +298,17 @@ async function virementsEnveloppeRestants(semainesPrecalculees) {
   const { budgetCycleEnveloppe } = await infosCycle();
   const semaines = semainesPrecalculees || await calculerSemainesCycle();
   const dejaVire = C.round2(semaines.filter(s => !s.neutralisee && s.fait).reduce((s, sem) => s + sem.montantVirement, 0));
+  // Montant theorique restant, SANS tenir compte du decouvert : utile pour l'echeancier et la
+  // projection de tresorerie, qui doivent justement alerter AVANT qu'on atteigne le mur.
   const virementsRestants = Math.max(0, C.round2(budgetCycleEnveloppe - dejaVire));
+  // Montant qui va REELLEMENT sortir du compte : somme des suggestions hebdo deja plafonnees par
+  // le decouvert (calculerSemainesCycle). Si le decouvert est deja epuise, les semaines pas
+  // encore faites suggerent 0€ -- ca ne doit pas pour autant plomber le "reste a vivre reel" avec
+  // un montant qu'on sait deja irrealisable : le decouvert serait sinon compte deux fois (une
+  // fois pour bloquer le virement, une fois en trop dans le reste a vivre).
+  const virementsRestantsRealistes = C.round2(semaines.filter(s => !s.neutralisee && !s.fait).reduce((s, sem) => s + sem.virementSuggere, 0));
   const prochainLundiPasFait = semaines.find(s => !s.neutralisee && !s.fait) || null;
-  return { virementsRestants, prochainLundiPasFait, semaines };
+  return { virementsRestants, virementsRestantsRealistes, prochainLundiPasFait, semaines };
 }
 
 async function renderAccueil(zone) {
@@ -309,7 +317,7 @@ async function renderAccueil(zone) {
   // calculerProjectionAuto en ont chacun besoin, et chacune refaisait la meme boucle hebdo sinon.
   const semaines = await calculerSemainesCycle();
   const virementsInfo = await virementsEnveloppeRestants(semaines);
-  const { virementsRestants } = virementsInfo;
+  const { virementsRestants, virementsRestantsRealistes } = virementsInfo;
   const semaine = semaineCouranteParmi(semaines)
     || { dateLundi: config.dateDemarrage, reste: budgetCycleEnveloppe, disponible: 0, depense: 0, virementSuggere: enveloppeHebdo, fait: false };
   const transactionsCycle = (await transactionsEntre(C.toISODate(debut), C.toISODate(fin))).filter(t => t.date >= config.dateDemarrage);
@@ -337,11 +345,14 @@ async function renderAccueil(zone) {
   const soldeEnveloppe = soldeEnveloppeConnu ? config.dernierSoldeEnveloppe.montant : 0;
 
   // Reste a vivre reel : le solde du compte principal + ce qui reste reellement sur l'enveloppe
-  // (Boursorama) a date, moins tout ce qui doit encore partir vers l'enveloppe pour financer le
+  // (Boursorama) a date, moins ce qui va REELLEMENT encore sortir du compte pour financer le
   // reste du cycle (les charges fixes, elles, sont deja reputees passees en debut de cycle et donc
-  // deja dans ce solde). Sans solde Boursorama saisi, l'argent deja viré mais pas encore depense
-  // la-bas reste invisible : le resultat sous-estime alors la realite (jamais l'inverse).
-  const resteAVivreReel = C.round2(soldePrincipal + soldeEnveloppe - virementsRestants);
+  // deja dans ce solde). On utilise virementsRestantsRealistes (deja plafonne par le decouvert),
+  // pas le montant theorique brut : sinon, une fois le decouvert epuise, on soustrairait en plus
+  // de l'argent qu'on sait deja ne jamais pouvoir transferer -- le decouvert compterait deux fois.
+  // Sans solde Boursorama saisi, l'argent deja viré mais pas encore depense la-bas reste invisible :
+  // le resultat sous-estime alors la realite (jamais l'inverse).
+  const resteAVivreReel = C.round2(soldePrincipal + soldeEnveloppe - virementsRestantsRealistes);
 
   zone.innerHTML = `
     <div class="stat-grid">
@@ -353,7 +364,8 @@ async function renderAccueil(zone) {
       <div class="stat-carte ${resteAVivreReel < 0 ? 'negatif' : 'positif'}">
         <div class="label">Reste a vivre reel</div>
         <div class="valeur">${eur(resteAVivreReel)}</div>
-        <div style="font-size:.75rem;color:var(--ink-soft)">solde principal${soldeEnveloppeConnu ? ' + ' + eur(soldeEnveloppe) + ' Boursorama' : ''} − ${eur(virementsRestants)} de virements enveloppe pas encore faits</div>
+        <div style="font-size:.75rem;color:var(--ink-soft)">solde principal${soldeEnveloppeConnu ? ' + ' + eur(soldeEnveloppe) + ' Boursorama' : ''} − ${eur(virementsRestantsRealistes)} de virements enveloppe encore a faire (deja plafonnes par le decouvert)</div>
+        ${virementsRestantsRealistes < virementsRestants ? `<div style="font-size:.72rem;color:var(--danger);font-style:italic;margin-top:2px">⚠️ ${eur(C.round2(virementsRestants - virementsRestantsRealistes))} du budget enveloppe ne pourront pas etre virés ce cycle, faute de decouvert suffisant.</div>` : ''}
         ${!soldeEnveloppeConnu ? '<div style="font-size:.72rem;color:var(--ink-soft);font-style:italic;margin-top:2px">Aucun solde Boursorama saisi — sous-estime l\'argent deja viré mais pas encore depense la-bas. Saisie dans l\'onglet Echeancier.</div>' : ''}
       </div>
       <div class="stat-carte ${resteCycle < 0 ? 'negatif' : 'positif'}">
