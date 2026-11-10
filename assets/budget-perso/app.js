@@ -64,9 +64,7 @@ const ONGLETS = [
   { id: 'saisie', label: '⚡ Saisie' },
   { id: 'semaine', label: '📆 Semaine' },
   { id: 'cycle', label: '🔄 Cycle' },
-  { id: 'echeancier', label: '📅 Echeancier' },
   { id: 'dettes', label: '💳 Dettes' },
-  { id: 'objectifs', label: '🎯 Objectifs' },
   { id: 'bonus', label: '🎁 Bonus' },
   { id: 'parametres', label: '⚙️ Parametres' },
   { id: 'donnees', label: '📁 Import / Export' }
@@ -77,19 +75,17 @@ const RENDUS = {
   saisie: renderSaisie,
   semaine: renderSemaine,
   cycle: renderCycle,
-  echeancier: renderEcheancier,
   dettes: renderDettes,
-  objectifs: renderObjectifs,
   bonus: renderBonus,
   parametres: renderParametres,
   donnees: renderDonnees
 };
 
-// Navigation a deux niveaux : les 10 ecrans regroupes par frequence d'usage reelle
+// Navigation a deux niveaux : les 8 ecrans regroupes par frequence d'usage reelle
 // (quotidien / mensuel / occasionnel), pour eviter de tout mettre au meme niveau.
 const GROUPES = [
   { id: 'quotidien', label: '🏠 Au quotidien', onglets: ['accueil', 'saisie', 'semaine'] },
-  { id: 'mois', label: '📊 Le mois', onglets: ['cycle', 'echeancier', 'objectifs'] },
+  { id: 'mois', label: '📊 Le mois', onglets: ['cycle'] },
   { id: 'ponctuel', label: '⚙️ De temps en temps', onglets: ['dettes', 'bonus', 'parametres', 'donnees'] }
 ];
 
@@ -406,12 +402,7 @@ async function renderAccueil(zone) {
           <span class="montant">${eur(e.montant)}</span>
         </div>`).join('') : '<div class="vide" style="padding:16px">Rien de prevu</div>'}
     </div>
-
-    <h2 class="section-titre">Objectifs</h2>
-    <div id="mini-objectifs"></div>
   `;
-  const zoneObjectifs = zone.querySelector('#mini-objectifs');
-  zoneObjectifs.innerHTML = await rendreListeObjectifsCourte();
 }
 
 // Echeances de dettes (type 'echeancier', ex: Izicarte, PayPal 4X) a date precise entre deux
@@ -482,15 +473,6 @@ async function calculerProjectionAuto(semainesPrecalculees) {
     mouvements,
     seuilDecouvert: config.seuilDecouvertAutorise
   });
-}
-
-async function rendreListeObjectifsCourte() {
-  const objectifs = await calculerObjectifs();
-  return `<div class="carte">${objectifs.slice(0, 3).map(o => `
-    <div class="jauge-ligne" style="margin-bottom:10px">
-      <div class="jauge-entete"><span>${o.libelle}</span><span>${o.texte}</span></div>
-      <div class="jauge-fond"><div class="jauge-barre ${o.pourcent >= 100 ? '' : (o.pourcent < 40 ? 'danger' : 'attention')}" style="width:${o.pourcent}%"></div></div>
-    </div>`).join('')}</div>`;
 }
 
 const CATEGORIES_REVENU = [
@@ -726,12 +708,15 @@ async function renderSemaine(zone) {
 async function renderCycle(zone) {
   const { config, debut, fin, budgetCycleEnveloppe, nbLundis } = await infosCycle();
   const transactions = (await transactionsEntre(C.toISODate(debut), C.toISODate(fin))).filter(t => t.date >= config.dateDemarrage);
+  const echeances30j = await echeancesProchaines(30);
+  // Seules ces 4 categories ont un vrai budget enveloppe configure (voir Parametres) : les autres
+  // (cafe, restaurant, vetements...) n'en ont pas et s'afficheraient toujours comme "depassees"
+  // avec un budget a 0€, ce qui est trompeur plutot qu'utile.
   const budgetsCategorie = {
     carburant: C.round2(C.carburantHebdo(config.enveloppe.carburant) * nbLundis),
     courses: config.enveloppe.coursesMensuel,
     tabac: config.enveloppe.tabacMensuel,
-    variable: config.enveloppe.variableMensuel,
-    cafe: 0, restaurant: 0, vetements: 0, soins: 0, cadeaux: 0, maison: 0, psy: 0, voiture: 0, autre: 0
+    variable: config.enveloppe.variableMensuel
   };
   const libelleCategorie = Object.fromEntries(config.categories.map(c => [c.id, c.libelle]));
   const idsEnveloppeCycle = new Set(config.categories.filter(c => c.enveloppe).map(c => c.id));
@@ -773,6 +758,39 @@ async function renderCycle(zone) {
       <button class="btn" id="btn-cloturer">Calculer la repartition du reste</button>
       <div id="resultat-cloture"></div>
     </div>
+
+    <details class="carte" style="margin-top:16px">
+      <summary style="cursor:pointer;font-weight:700;">Echeancier et projection de tresorerie</summary>
+      <h3 style="margin:14px 0 8px">Echeancier (30 jours)</h3>
+      <div class="carte liste-echeances">
+        ${echeances30j.length ? echeances30j.map(e => `
+          <div class="item-ligne"><span>${dateFR(e.date)} — ${e.libelle}</span><span class="montant">${eur(e.montant)}</span></div>
+        `).join('') : '<div class="vide" style="padding:16px">Rien de prevu</div>'}
+      </div>
+
+      <h3 style="margin:18px 0 8px">Projection de tresorerie</h3>
+      <div class="champ-groupe"><label>Solde saisi</label><input id="proj-solde" type="number" step="0.01" value="${config.dernierSolde.montant || ''}"></div>
+      <div class="champ-groupe"><label>Date du solde</label><input id="proj-date" type="date" value="${config.dernierSolde.date || auj()}"></div>
+      <button class="btn" id="proj-enregistrer-solde">Enregistrer ce solde</button>
+
+      <h4 style="margin:18px 0 8px">Solde Boursorama (enveloppe)</h4>
+      <p style="font-size:.78rem;color:var(--ink-soft);margin:-4px 0 10px">A remettre a jour de temps en temps pour que "Reste a vivre reel" compte aussi l'argent deja viré mais pas encore depense la-bas.</p>
+      <div class="champ-groupe"><label>Solde saisi</label><input id="proj-solde-env" type="number" step="0.01" value="${config.dernierSoldeEnveloppe.montant || ''}"></div>
+      <div class="champ-groupe"><label>Date du solde</label><input id="proj-date-env" type="date" value="${config.dernierSoldeEnveloppe.date || auj()}"></div>
+      <button class="btn" id="proj-enregistrer-solde-env">Enregistrer ce solde</button>
+
+      <h4 style="margin:18px 0 8px">Mouvements prevus</h4>
+      <div id="proj-mouvements"></div>
+      <div class="action-flottante">
+        <input id="proj-mvt-date" type="date" value="${auj()}" style="padding:8px;border-radius:8px;border:2px solid var(--border)">
+        <input id="proj-mvt-libelle" type="text" placeholder="Libelle" style="flex:1;padding:8px;border-radius:8px;border:2px solid var(--border)">
+        <input id="proj-mvt-montant" type="number" step="0.01" placeholder="Montant (+ ou -)" style="width:130px;padding:8px;border-radius:8px;border:2px solid var(--border)">
+        <button class="btn" id="proj-ajouter-mvt">Ajouter</button>
+      </div>
+      <button class="btn" id="proj-auto" style="margin-top:10px">+ Ajouter les echeances a venir</button>
+      <button class="btn" id="proj-calculer" style="margin-top:10px">Calculer la projection</button>
+      <div id="proj-resultat"></div>
+    </details>
   `;
   document.getElementById('btn-cloturer').addEventListener('click', async () => {
     const resteCycle = C.round2(budgetCycleEnveloppe - totalDepense);
@@ -794,45 +812,6 @@ async function renderCycle(zone) {
       renderCycle(zone);
     });
   });
-}
-
-async function renderEcheancier(zone) {
-  const config = await DB.getConfig();
-  const echeances30j = await echeancesProchaines(30);
-
-  zone.innerHTML = `
-    <h2 class="section-titre" style="margin-top:0">Echeancier (30 jours)</h2>
-    <div class="carte liste-echeances">
-      ${echeances30j.length ? echeances30j.map(e => `
-        <div class="item-ligne"><span>${dateFR(e.date)} — ${e.libelle}</span><span class="montant">${eur(e.montant)}</span></div>
-      `).join('') : '<div class="vide" style="padding:16px">Rien de prevu</div>'}
-    </div>
-
-    <h2 class="section-titre">Projection de tresorerie</h2>
-    <div class="carte">
-      <div class="champ-groupe"><label>Solde saisi</label><input id="proj-solde" type="number" step="0.01" value="${config.dernierSolde.montant || ''}"></div>
-      <div class="champ-groupe"><label>Date du solde</label><input id="proj-date" type="date" value="${config.dernierSolde.date || auj()}"></div>
-      <button class="btn" id="proj-enregistrer-solde">Enregistrer ce solde</button>
-
-      <h3 style="margin:18px 0 8px">Solde Boursorama (enveloppe)</h3>
-      <p style="font-size:.78rem;color:var(--ink-soft);margin:-4px 0 10px">A remettre a jour de temps en temps pour que "Reste a vivre reel" compte aussi l'argent deja viré mais pas encore depense la-bas.</p>
-      <div class="champ-groupe"><label>Solde saisi</label><input id="proj-solde-env" type="number" step="0.01" value="${config.dernierSoldeEnveloppe.montant || ''}"></div>
-      <div class="champ-groupe"><label>Date du solde</label><input id="proj-date-env" type="date" value="${config.dernierSoldeEnveloppe.date || auj()}"></div>
-      <button class="btn" id="proj-enregistrer-solde-env">Enregistrer ce solde</button>
-
-      <h3 style="margin:18px 0 8px">Mouvements prevus</h3>
-      <div id="proj-mouvements"></div>
-      <div class="action-flottante">
-        <input id="proj-mvt-date" type="date" value="${auj()}" style="padding:8px;border-radius:8px;border:2px solid var(--border)">
-        <input id="proj-mvt-libelle" type="text" placeholder="Libelle" style="flex:1;padding:8px;border-radius:8px;border:2px solid var(--border)">
-        <input id="proj-mvt-montant" type="number" step="0.01" placeholder="Montant (+ ou -)" style="width:130px;padding:8px;border-radius:8px;border:2px solid var(--border)">
-        <button class="btn" id="proj-ajouter-mvt">Ajouter</button>
-      </div>
-      <button class="btn" id="proj-auto" style="margin-top:10px">+ Ajouter les echeances a venir</button>
-      <button class="btn" id="proj-calculer" style="margin-top:10px">Calculer la projection</button>
-      <div id="proj-resultat"></div>
-    </div>
-  `;
 
   let mouvements = [];
   const rafraichirMouvements = () => {
@@ -898,11 +877,10 @@ async function renderEcheancier(zone) {
   });
 }
 
+
 async function renderDettes(zone) {
   const dettes = await DB.getAll('dettes');
-  zone.innerHTML = `<div id="liste-dettes"></div>`;
-  const liste = zone.querySelector('#liste-dettes');
-  liste.innerHTML = dettes.map(d => `
+  zone.innerHTML = dettes.map(d => `
     <div class="carte" style="margin-bottom:14px" data-id="${d.id}">
       <h3 style="margin-bottom:8px">${d.nom}</h3>
       ${d.type === 'echeancier' ? `
@@ -917,84 +895,7 @@ async function renderDettes(zone) {
           <div class="stat-carte"><div class="label">Taux annuel</div><div class="valeur">${d.tauxAnnuel}%</div></div>
           <div class="stat-carte"><div class="label">Mensualite</div><div class="valeur">${eur(d.mensualite)}</div></div>
         </div>
-        <button class="btn btn-voir-tableau" data-id="${d.id}">Voir le tableau d'amortissement</button>
-        <div class="tableau-amortissement" id="tableau-${d.id}" style="margin-top:10px"></div>
-
-        <h4 style="margin-top:16px">Simulateur "et si je verse en plus"</h4>
-        <div class="action-flottante">
-          <input type="number" step="0.01" placeholder="Montant EUR" class="sim-montant" data-id="${d.id}" style="width:130px;padding:8px;border-radius:8px;border:2px solid var(--border)">
-          <input type="number" placeholder="Au mois n°" value="1" class="sim-mois" data-id="${d.id}" style="width:110px;padding:8px;border-radius:8px;border:2px solid var(--border)">
-          <button class="btn btn-simuler" data-id="${d.id}">Simuler</button>
-        </div>
-        <div class="resultat-sim" id="sim-${d.id}"></div>
       `}
-    </div>
-  `).join('');
-
-  liste.querySelectorAll('.btn-voir-tableau').forEach(btn => btn.addEventListener('click', () => {
-    const d = dettes.find(x => x.id === btn.dataset.id);
-    const { tableau, nbMensualites, interetsTotal } = C.tableauAmortissement({ capital: d.capitalRestant, tauxAnnuel: d.tauxAnnuel, mensualite: d.mensualite });
-    const apercu = [...tableau.slice(0, 6), ...(tableau.length > 12 ? [{ mois: '…' }] : []), ...tableau.slice(-2)];
-    document.getElementById(`tableau-${d.id}`).innerHTML = `
-      <p style="font-size:.85rem;color:var(--ink-soft)">${nbMensualites} mensualites restantes — ${eur(interetsTotal)} d'interets au total.</p>
-      <table class="tableau-simple">
-        <thead><tr><th>Mois</th><th>Interet</th><th>Capital</th><th>Restant</th></tr></thead>
-        <tbody>${apercu.map(l => l.interet === undefined ? '<tr><td colspan="4">…</td></tr>' : `<tr><td>${l.mois}</td><td>${eur(l.interet)}</td><td>${eur(l.capitalRembourse)}</td><td>${eur(l.restant)}</td></tr>`).join('')}</tbody>
-      </table>`;
-  }));
-
-  liste.querySelectorAll('.btn-simuler').forEach(btn => btn.addEventListener('click', () => {
-    const d = dettes.find(x => x.id === btn.dataset.id);
-    const montant = parseFloat(liste.querySelector(`.sim-montant[data-id="${d.id}"]`).value);
-    const mois = parseInt(liste.querySelector(`.sim-mois[data-id="${d.id}"]`).value, 10) || 1;
-    if (!montant) return;
-    const r = C.simulerVersementSupplementaire({ capital: d.capitalRestant, tauxAnnuel: d.tauxAnnuel, mensualite: d.mensualite, versementExtra: montant, moisApplication: mois });
-    document.getElementById(`sim-${d.id}`).innerHTML = `
-      <p style="margin-top:8px">Sans le versement : ${r.nbMensualitesBase} mensualites. Avec ${eur(montant)} au mois ${mois} : <strong>${r.nbMensualitesAvecExtra} mensualites</strong> (${r.moisGagnes} de gagnes) et <strong>${eur(r.interetsEconomises)}</strong> d'interets economises.</p>`;
-  }));
-}
-
-async function calculerObjectifs() {
-  const config = await DB.getConfig();
-  const dettes = await DB.getAll('dettes');
-  const { debut, fin } = C.cycleContenant(new Date(), config.jourCycle);
-  const transactionsCycle = (await transactionsEntre(C.toISODate(debut), C.toISODate(fin))).filter(t => t.date >= config.dateDemarrage);
-
-  return config.objectifs.map(o => {
-    if (o.type === 'montant') {
-      const actuel = o.id === 'obj-coussin' ? config.coussinActuel : config.epargneActuelle;
-      const pourcent = C.progressionObjectif(actuel, o.cible);
-      return { libelle: o.libelle, pourcent, texte: `${eur(actuel)} / ${eur(o.cible)}` };
-    }
-    if (o.type === 'plafondMensuel') {
-      const depense = totalDepenses(transactionsCycle, id => id === o.categorie);
-      const pourcent = Math.min(100, C.progressionObjectif(depense, o.cible));
-      return { libelle: o.libelle, pourcent: 100 - pourcent, texte: `${eur(depense)} / ${eur(o.cible)}`, depasse: depense > o.cible };
-    }
-    if (o.type === 'date') {
-      const dette = dettes.find(d => d.id === (o.id === 'obj-izicarte' ? 'dette-izicarte' : 'dette-pret-auto'));
-      if (!dette || dette.capitalRestant <= 0) return { libelle: o.libelle, pourcent: 100, texte: 'Soldee ✅' };
-      const { nbMensualites } = C.tableauAmortissement({ capital: dette.capitalRestant, tauxAnnuel: dette.tauxAnnuel, mensualite: dette.mensualite });
-      const dateProjetee = new Date();
-      dateProjetee.setMonth(dateProjetee.getMonth() + nbMensualites);
-      const cible = C.parseISODate(o.cible);
-      const aTemps = dateProjetee <= cible;
-      return { libelle: o.libelle, pourcent: aTemps ? 80 : 30, texte: `estime ${dateProjetee.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })} (objectif ${dateFR(o.cible)})`, aTemps };
-    }
-    if (o.type === 'compteur') {
-      const rejets = transactionsCycle.filter(t => t.categorie === 'frais_bancaires' && t.rejet).length;
-      return { libelle: o.libelle, pourcent: rejets === 0 ? 100 : 0, texte: `${rejets} ce cycle` };
-    }
-    return { libelle: o.libelle, pourcent: 0, texte: '' };
-  });
-}
-
-async function renderObjectifs(zone) {
-  const objectifs = await calculerObjectifs();
-  zone.innerHTML = objectifs.map(o => `
-    <div class="carte jauge-ligne">
-      <div class="jauge-entete"><span>${o.libelle}</span><span>${o.texte}</span></div>
-      <div class="jauge-fond"><div class="jauge-barre ${o.pourcent >= 80 ? '' : (o.pourcent >= 40 ? 'attention' : 'danger')}" style="width:${o.pourcent}%"></div></div>
     </div>
   `).join('');
 }
@@ -1003,7 +904,6 @@ async function renderBonus(zone) {
   const config = await DB.getConfig();
   const dettes = await DB.getAll('dettes');
   const izicarte = dettes.find(d => d.id === 'dette-izicarte');
-  const evenements = await DB.getAll('evenements');
 
   zone.innerHTML = `
     <h2 class="section-titre" style="margin-top:0">Revenu exceptionnel</h2>
@@ -1015,40 +915,7 @@ async function renderBonus(zone) {
       <button class="btn" id="bonus-calculer">Calculer la repartition</button>
       <div id="bonus-resultat"></div>
     </div>
-
-    <h2 class="section-titre">Evenements</h2>
-    <div class="carte" id="liste-evenements"></div>
-    <div class="action-flottante">
-      <input id="evt-nom" type="text" placeholder="Nom" style="flex:1;padding:8px;border-radius:8px;border:2px solid var(--border)">
-      <input id="evt-montant" type="number" step="0.01" placeholder="Montant" style="width:120px;padding:8px;border-radius:8px;border:2px solid var(--border)">
-      <input id="evt-date" type="date" style="padding:8px;border-radius:8px;border:2px solid var(--border)">
-      <button class="btn" id="evt-ajouter">Ajouter</button>
-    </div>
   `;
-
-  const rafraichirEvenements = async () => {
-    const liste = await DB.getAll('evenements');
-    document.getElementById('liste-evenements').innerHTML = liste.length ? liste.map(e => `
-      <div class="item-ligne"><span>${dateFR(e.date)} — ${e.nom}</span><span class="montant">${eur(e.montant)}</span></div>
-    `).join('') : '<p class="vide" style="padding:10px">Aucun evenement.</p>';
-  };
-  await rafraichirEvenements();
-  if (!evenements.length) {
-    await DB.put('evenements', { id: DB.nouvelId(), nom: 'Anniversaire', montant: 80, date: `${new Date().getFullYear()}-10-15` });
-    await DB.put('evenements', { id: DB.nouvelId(), nom: 'Noel', montant: 400, date: `${new Date().getFullYear()}-12-20` });
-    await rafraichirEvenements();
-  }
-
-  document.getElementById('evt-ajouter').addEventListener('click', async () => {
-    const nom = document.getElementById('evt-nom').value;
-    const montant = parseFloat(document.getElementById('evt-montant').value);
-    const date = document.getElementById('evt-date').value;
-    if (!nom || !montant || !date) return;
-    await DB.put('evenements', { id: DB.nouvelId(), nom, montant, date });
-    document.getElementById('evt-nom').value = '';
-    document.getElementById('evt-montant').value = '';
-    await rafraichirEvenements();
-  });
 
   document.getElementById('bonus-calculer').addEventListener('click', () => {
     const bonusTotal = parseFloat(document.getElementById('bonus-total').value) || 0;
@@ -1092,8 +959,6 @@ async function renderParametres(zone) {
       </div>
       <div class="champ-groupe"><label>Revenu net mensuel</label><input id="p-revenu" type="number" step="0.01" value="${config.revenuNetMensuel}"></div>
       <div class="champ-groupe"><label>Decouvert autorise</label><input id="p-decouvert" type="number" step="0.01" value="${config.decouvertAutorise}"></div>
-      <div class="champ-groupe"><label>Taux agios annuel (%)</label><input id="p-agios" type="number" step="0.01" value="${config.tauxAgios}"></div>
-      <div class="champ-groupe"><label>Commission par rejet</label><input id="p-commission-rejet" type="number" step="0.01" value="${config.commissionRejet}"></div>
       <div class="champ-groupe"><label>Coussin cible</label><input id="p-coussin-cible" type="number" step="0.01" value="${config.coussinCible}"></div>
       <div class="champ-groupe"><label>Coussin actuel</label><input id="p-coussin-actuel" type="number" step="0.01" value="${config.coussinActuel}"></div>
       <div class="champ-groupe"><label>Epargne actuelle</label><input id="p-epargne" type="number" step="0.01" value="${config.epargneActuelle}"></div>
@@ -1170,8 +1035,6 @@ async function renderParametres(zone) {
     config.revenuNetMensuel = parseFloat(document.getElementById('p-revenu').value);
     config.decouvertAutorise = parseFloat(document.getElementById('p-decouvert').value);
     config.seuilDecouvertAutorise = -Math.abs(config.decouvertAutorise);
-    config.tauxAgios = parseFloat(document.getElementById('p-agios').value);
-    config.commissionRejet = parseFloat(document.getElementById('p-commission-rejet').value);
     config.coussinCible = parseFloat(document.getElementById('p-coussin-cible').value);
     config.coussinActuel = parseFloat(document.getElementById('p-coussin-actuel').value);
     config.epargneActuelle = parseFloat(document.getElementById('p-epargne').value);

@@ -5,7 +5,8 @@ import { toISODate } from './calc.js';
 
 const DB_NAME = 'budget-perso';
 const DB_VERSION = 1;
-// Les objectifs vivent dans config.objectifs (pas de store dedie) : seuls ces magasins sont reellement utilises.
+// 'evenements' n'est plus utilise par l'appli (ecran "Evenements" retire, fonctionnalite isolee
+// du reste) : garde dans STORES pour ne pas casser les bases existantes, mais jamais lu/ecrit.
 const STORES = ['config', 'transactions', 'dettes', 'virementsHebdo', 'evenements', 'reglesImport'];
 
 let dbPromise = null;
@@ -79,9 +80,6 @@ export const CONFIG_DEFAUT = {
   revenuNetMensuel: 2030,
   seuilDecouvertAutorise: -500,
   decouvertAutorise: 500,
-  tauxAgios: 21.14,
-  commissionRejet: 8,
-  contributionCompteJoint: 800,
   coussinCible: 400,
   coussinActuel: 0,
   epargneActuelle: 2800,
@@ -134,17 +132,7 @@ export const CONFIG_DEFAUT = {
     variableMensuel: 258
   },
 
-  affectationBonus: { partPretAuto: 0.6, partLivret: 0.4, montantNoel: 400 },
-
-  objectifs: [
-    { id: 'obj-rejets', libelle: '0 rejet par cycle', type: 'compteur', cible: 0 },
-    { id: 'obj-coussin', libelle: 'Coussin permanent', type: 'montant', cible: 400 },
-    { id: 'obj-izicarte', libelle: 'Izicarte a 0', type: 'date', cible: '2026-11-30' },
-    { id: 'obj-pret-auto', libelle: 'Pret auto solde', type: 'date', cible: '2029-03-31' },
-    { id: 'obj-epargne', libelle: 'Epargne >= 3000 EUR', type: 'montant', cible: 3000, echeance: '2027-09-30' },
-    { id: 'obj-tabac', libelle: 'Tabac <= 150 EUR/mois', type: 'plafondMensuel', cible: 150, categorie: 'tabac' },
-    { id: 'obj-frais-bancaires', libelle: 'Frais bancaires ~12 EUR/mois', type: 'plafondMensuel', cible: 12, categorie: 'frais_bancaires' }
-  ]
+  affectationBonus: { partPretAuto: 0.6, partLivret: 0.4, montantNoel: 400 }
 };
 
 export const DETTES_DEFAUT = [
