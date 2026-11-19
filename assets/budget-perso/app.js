@@ -712,7 +712,7 @@ async function renderSemaine(zone) {
 async function calculerMoyennesReelles(nbMois) {
   const config = await DB.getConfig();
   const toutes = await DB.getAll('transactions');
-  const moyennesParCat = C.moyennesMensuellesParCategorie(toutes, nbMois);
+  const { moyennes: moyennesParCat, nbMoisInclus } = C.moyennesMensuellesParCategorie(toutes, nbMois, new Date(), config.dateDemarrage);
   const libelleCategorie = Object.fromEntries(config.categories.map(c => [c.id, c.libelle]));
   const lignes = Object.entries(moyennesParCat)
     .map(([id, moyenne]) => ({ id, libelle: libelleCategorie[id] || id, moyenne }))
@@ -721,11 +721,12 @@ async function calculerMoyennesReelles(nbMois) {
   const chargesFixes = totalChargesFixes(config);
   const totalMensuelEstime = C.round2(chargesFixes + totalDepensesMoyen);
   const margeMoyenne = C.round2(config.revenuNetMensuel - totalMensuelEstime);
-  return { lignes, totalDepensesMoyen, chargesFixes, totalMensuelEstime, margeMoyenne, revenu: config.revenuNetMensuel };
+  return { lignes, nbMoisInclus, nbMoisDemandes: nbMois, totalDepensesMoyen, chargesFixes, totalMensuelEstime, margeMoyenne, revenu: config.revenuNetMensuel };
 }
 
 function rendreMoyennesReelles(r) {
   return `
+    ${r.nbMoisInclus < r.nbMoisDemandes ? `<p style="font-size:.78rem;color:var(--ink-soft);margin:-2px 0 10px">Suivi actif depuis moins de ${r.nbMoisDemandes} mois : moyenne calculee sur ${r.nbMoisInclus} mois reellement suivi(s), pas diluee sur des mois sans suivi.</p>` : ''}
     <table class="tableau-simple">
       <thead><tr><th>Categorie</th><th>Moyenne/mois</th></tr></thead>
       <tbody>

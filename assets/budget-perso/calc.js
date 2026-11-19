@@ -198,22 +198,29 @@ export function soldeTheorique({ soldeInitial, transactions }) {
 // dateRef (le mois en cours est exclu : encore incomplet, il fausserait la moyenne a la baisse).
 // Un mois sans depense dans une categorie compte pour 0 (pas ignore) : une categorie occasionnelle
 // doit bien ressortir avec une moyenne faible, pas gonflee comme si elle revenait tous les mois.
-export function moyennesMensuellesParCategorie(transactions, nbMois, dateRef = new Date()) {
+// dateDemarrageISO (optionnel) exclut du calcul -- cumul ET diviseur -- les mois entierement
+// avant le debut du suivi : un mois sans donnee parce qu'il n'etait pas encore suivi n'est pas
+// un "0€ depense ce mois-la", et ne doit pas diluer la moyenne comme s'il l'etait.
+export function moyennesMensuellesParCategorie(transactions, nbMois, dateRef = new Date(), dateDemarrageISO = null) {
+  const moisSuivi = dateDemarrageISO ? dateDemarrageISO.slice(0, 7) : null;
   const moisInclus = new Set();
   for (let i = 1; i <= nbMois; i++) {
     const d = new Date(dateRef.getFullYear(), dateRef.getMonth() - i, 1);
-    moisInclus.add(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+    const mois = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    if (moisSuivi && mois < moisSuivi) continue;
+    moisInclus.add(mois);
   }
   const sommesParCategorie = {};
   for (const t of transactions) {
     if (t.montant >= 0 || !moisInclus.has(t.date.slice(0, 7))) continue;
     sommesParCategorie[t.categorie] = round2((sommesParCategorie[t.categorie] || 0) + Math.abs(t.montant));
   }
+  const nbMoisInclus = moisInclus.size || 1;
   const moyennes = {};
   for (const cat of Object.keys(sommesParCategorie)) {
-    moyennes[cat] = round2(sommesParCategorie[cat] / nbMois);
+    moyennes[cat] = round2(sommesParCategorie[cat] / nbMoisInclus);
   }
-  return moyennes;
+  return { moyennes, nbMoisInclus };
 }
 
 // Répartition d'un revenu exceptionnel (bonus / rachat AV) selon les règles paramétrables.

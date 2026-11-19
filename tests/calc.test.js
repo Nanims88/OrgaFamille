@@ -144,9 +144,10 @@ test('moyennesMensuellesParCategorie : moyenne sur 3 mois, dilue un mois sans de
     { date: '2026-10-12', categorie: 'tabac', montant: -150 },
     { date: '2026-11-02', categorie: 'courses', montant: -999 } // mois en cours : exclu.
   ];
-  const r = moyennesMensuellesParCategorie(transactions, 3, dateRef);
-  assert.equal(r.courses, 60); // (100 + 80 + 0) / 3
-  assert.equal(r.tabac, 50); // (0 + 150 + 0) / 3
+  const { moyennes, nbMoisInclus } = moyennesMensuellesParCategorie(transactions, 3, dateRef);
+  assert.equal(nbMoisInclus, 3);
+  assert.equal(moyennes.courses, 60); // (100 + 80 + 0) / 3
+  assert.equal(moyennes.tabac, 50); // (0 + 150 + 0) / 3
 });
 
 test('moyennesMensuellesParCategorie : ignore les revenus (montant positif)', () => {
@@ -155,7 +156,22 @@ test('moyennesMensuellesParCategorie : ignore les revenus (montant positif)', ()
     { date: '2026-10-05', categorie: 'salaire', montant: 2000 },
     { date: '2026-10-05', categorie: 'courses', montant: -50 }
   ];
-  const r = moyennesMensuellesParCategorie(transactions, 1, dateRef);
-  assert.equal(r.salaire, undefined);
-  assert.equal(r.courses, 50);
+  const { moyennes } = moyennesMensuellesParCategorie(transactions, 1, dateRef);
+  assert.equal(moyennes.salaire, undefined);
+  assert.equal(moyennes.courses, 50);
+});
+
+test('moyennesMensuellesParCategorie : exclut les mois avant le debut du suivi (pas de dilution par des mois "pas encore suivis")', () => {
+  const dateRef = new Date(2026, 10, 19); // 19 novembre 2026
+  // Suivi demarre le 15 octobre : aout et septembre ne sont pas "suivis" (pas juste "sans depense").
+  const dateDemarrage = '2026-10-15';
+  const transactions = [
+    { date: '2026-10-03', categorie: 'virement_enveloppe', montant: -100 },
+    { date: '2026-10-10', categorie: 'virement_enveloppe', montant: -100 },
+    { date: '2026-10-17', categorie: 'virement_enveloppe', montant: -100 },
+    { date: '2026-10-24', categorie: 'virement_enveloppe', montant: -100 }
+  ];
+  const { moyennes, nbMoisInclus } = moyennesMensuellesParCategorie(transactions, 3, dateRef, dateDemarrage);
+  assert.equal(nbMoisInclus, 1); // seul octobre est suivi parmi les 3 mois demandes
+  assert.equal(moyennes.virement_enveloppe, 400); // cumule sur le seul mois suivi, pas dilue sur 3
 });
