@@ -731,14 +731,19 @@ async function calculerMoyennesReelles(nbMois) {
   const toutes = await DB.getAll('transactions');
   const { moyennes: moyennesParCat, nbMoisInclus } = C.moyennesMensuellesParCategorie(toutes, nbMois, new Date(), config.dateDemarrage);
   const libelleCategorie = Object.fromEntries(config.categories.map(c => [c.id, c.libelle]));
+  // La categorie "charge_fixe" (saisie manuellement) represente les memes charges que
+  // totalChargesFixes(config) (compte joint, pret...) : l'additionner en plus doublerait les
+  // charges fixes si elles sont aussi saisies individuellement en plus d'etre configurees.
+  const chargeFixeSaisie = moyennesParCat['charge_fixe'] || 0;
   const lignes = Object.entries(moyennesParCat)
+    .filter(([id]) => id !== 'charge_fixe')
     .map(([id, moyenne]) => ({ id, libelle: libelleCategorie[id] || id, moyenne }))
     .sort((a, b) => b.moyenne - a.moyenne);
   const totalDepensesMoyen = C.round2(lignes.reduce((s, l) => s + l.moyenne, 0));
   const chargesFixes = totalChargesFixes(config);
   const totalMensuelEstime = C.round2(chargesFixes + totalDepensesMoyen);
   const margeMoyenne = C.round2(config.revenuNetMensuel - totalMensuelEstime);
-  return { lignes, nbMoisInclus, nbMoisDemandes: nbMois, totalDepensesMoyen, chargesFixes, totalMensuelEstime, margeMoyenne, revenu: config.revenuNetMensuel };
+  return { lignes, chargeFixeSaisie, nbMoisInclus, nbMoisDemandes: nbMois, totalDepensesMoyen, chargesFixes, totalMensuelEstime, margeMoyenne, revenu: config.revenuNetMensuel };
 }
 
 function rendreMoyennesReelles(r) {
@@ -751,6 +756,7 @@ function rendreMoyennesReelles(r) {
         <tr><td><strong>Total depenses variables (moyenne)</strong></td><td><strong>${eur(r.totalDepensesMoyen)}</strong></td></tr>
       </tbody>
     </table>
+    ${r.chargeFixeSaisie > 0 ? `<p style="font-size:.78rem;color:var(--ink-soft);margin-top:4px">${eur(r.chargeFixeSaisie)}/mois saisi(s) sous la categorie "Charge fixe" ne sont pas comptes ici : deja inclus dans les charges fixes configurees ci-dessous, pour ne pas les compter deux fois.</p>` : ''}
     <div class="stat-grid" style="margin-top:12px">
       <div class="stat-carte"><div class="label">Charges fixes (configurees)</div><div class="valeur">${eur(r.chargesFixes)}</div></div>
       <div class="stat-carte"><div class="label">Cout de vie mensuel estime</div><div class="valeur">${eur(r.totalMensuelEstime)}</div></div>
