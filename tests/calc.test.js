@@ -14,7 +14,8 @@ import {
   progressionObjectif,
   toISODate,
   lundiDeLaSemaine,
-  soldeTheorique
+  soldeTheorique,
+  moyennesMensuellesParCategorie
 } from '../assets/budget-perso/calc.js';
 
 test('lundiDeLaSemaine : retrouve le lundi de la semaine, y compris un dimanche', () => {
@@ -132,4 +133,29 @@ test('scenario 20/09/2026 : detecte le trou de tresorerie et le montant a couvri
   assert.equal(res.soldeMinimum, -649.75);
   assert.equal(res.dateSoldeMinimum, '2026-09-20');
   assert.ok(res.soldeFinal > 0, 'la paie doit ramener le solde au positif');
+});
+
+test('moyennesMensuellesParCategorie : moyenne sur 3 mois, dilue un mois sans depense', () => {
+  const dateRef = new Date(2026, 10, 15); // 15 novembre 2026
+  const transactions = [
+    { date: '2026-10-05', categorie: 'courses', montant: -100 },
+    { date: '2026-09-10', categorie: 'courses', montant: -80 },
+    // aout : aucune depense "courses" -> doit diluer la moyenne, pas l'ignorer.
+    { date: '2026-10-12', categorie: 'tabac', montant: -150 },
+    { date: '2026-11-02', categorie: 'courses', montant: -999 } // mois en cours : exclu.
+  ];
+  const r = moyennesMensuellesParCategorie(transactions, 3, dateRef);
+  assert.equal(r.courses, 60); // (100 + 80 + 0) / 3
+  assert.equal(r.tabac, 50); // (0 + 150 + 0) / 3
+});
+
+test('moyennesMensuellesParCategorie : ignore les revenus (montant positif)', () => {
+  const dateRef = new Date(2026, 10, 15);
+  const transactions = [
+    { date: '2026-10-05', categorie: 'salaire', montant: 2000 },
+    { date: '2026-10-05', categorie: 'courses', montant: -50 }
+  ];
+  const r = moyennesMensuellesParCategorie(transactions, 1, dateRef);
+  assert.equal(r.salaire, undefined);
+  assert.equal(r.courses, 50);
 });

@@ -705,6 +705,43 @@ async function renderSemaine(zone) {
   }));
 }
 
+// Moyenne mensuelle reelle (toutes categories, tous comptes confondus) sur les N derniers mois
+// complets : donne une estimation du cout de vie reel (fixe + variable), a comparer au revenu
+// pour voir la marge / epargne potentielle. Les charges fixes, elles, viennent de la config
+// (deja un montant mensuel fiable, inutile de le re-deriver de l'historique des saisies).
+async function calculerMoyennesReelles(nbMois) {
+  const config = await DB.getConfig();
+  const toutes = await DB.getAll('transactions');
+  const moyennesParCat = C.moyennesMensuellesParCategorie(toutes, nbMois);
+  const libelleCategorie = Object.fromEntries(config.categories.map(c => [c.id, c.libelle]));
+  const lignes = Object.entries(moyennesParCat)
+    .map(([id, moyenne]) => ({ id, libelle: libelleCategorie[id] || id, moyenne }))
+    .sort((a, b) => b.moyenne - a.moyenne);
+  const totalDepensesMoyen = C.round2(lignes.reduce((s, l) => s + l.moyenne, 0));
+  const chargesFixes = totalChargesFixes(config);
+  const totalMensuelEstime = C.round2(chargesFixes + totalDepensesMoyen);
+  const margeMoyenne = C.round2(config.revenuNetMensuel - totalMensuelEstime);
+  return { lignes, totalDepensesMoyen, chargesFixes, totalMensuelEstime, margeMoyenne, revenu: config.revenuNetMensuel };
+}
+
+function rendreMoyennesReelles(r) {
+  return `
+    <table class="tableau-simple">
+      <thead><tr><th>Categorie</th><th>Moyenne/mois</th></tr></thead>
+      <tbody>
+        ${r.lignes.length ? r.lignes.map(l => `<tr><td>${l.libelle}</td><td>${eur(l.moyenne)}</td></tr>`).join('') : '<tr><td colspan="2" class="vide">Pas assez d\'historique sur cette periode.</td></tr>'}
+        <tr><td><strong>Total depenses variables (moyenne)</strong></td><td><strong>${eur(r.totalDepensesMoyen)}</strong></td></tr>
+      </tbody>
+    </table>
+    <div class="stat-grid" style="margin-top:12px">
+      <div class="stat-carte"><div class="label">Charges fixes (configurees)</div><div class="valeur">${eur(r.chargesFixes)}</div></div>
+      <div class="stat-carte"><div class="label">Cout de vie mensuel estime</div><div class="valeur">${eur(r.totalMensuelEstime)}</div></div>
+      <div class="stat-carte ${r.margeMoyenne < 0 ? 'negatif' : 'positif'}"><div class="label">Marge moyenne (epargne potentielle)</div><div class="valeur">${eur(r.margeMoyenne)}</div></div>
+    </div>
+    <p style="font-size:.78rem;color:var(--ink-soft);margin-top:8px">${eur(r.revenu)} de revenu net − ${eur(r.totalMensuelEstime)} de cout de vie estime (fixe + variable moyen) = ${eur(r.margeMoyenne)}.</p>
+  `;
+}
+
 async function renderCycle(zone) {
   const { config, debut, fin, budgetCycleEnveloppe, nbLundis } = await infosCycle();
   const transactions = (await transactionsEntre(C.toISODate(debut), C.toISODate(fin))).filter(t => t.date >= config.dateDemarrage);
@@ -752,6 +789,17 @@ async function renderCycle(zone) {
       </tbody>
     </table>
 
+    <h2 class="section-titre" style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
+      <span>Moyenne mensuelle reelle</span>
+      <select id="moyennes-nb-mois" style="padding:6px 10px;border-radius:8px;border:2px solid var(--border)">
+        <option value="3">3 derniers mois</option>
+        <option value="6">6 derniers mois</option>
+        <option value="12">12 derniers mois</option>
+      </select>
+    </h2>
+    <p style="font-size:.8rem;color:var(--ink-soft);margin-top:-6px">Calculee sur les mois complets ecoules (hors mois en cours), toutes categories confondues — pour voir ce que tu depenses vraiment en moyenne, pas juste ce qui est budgete.</p>
+    <div id="moyennes-contenu"></div>
+
     <h2 class="section-titre">Cloture du cycle</h2>
     <div class="carte">
       <p style="font-size:.85rem;color:var(--ink-soft)">Le reste de l'enveloppe va au coussin (jusqu'a ${eur(config.coussinCible)}) puis au pret auto.</p>
@@ -792,6 +840,15 @@ async function renderCycle(zone) {
       <div id="proj-resultat"></div>
     </details>
   `;
+
+  const rafraichirMoyennes = async () => {
+    const nbMois = parseInt(document.getElementById('moyennes-nb-mois').value, 10);
+    const r = await calculerMoyennesReelles(nbMois);
+    document.getElementById('moyennes-contenu').innerHTML = rendreMoyennesReelles(r);
+  };
+  await rafraichirMoyennes();
+  document.getElementById('moyennes-nb-mois').addEventListener('change', rafraichirMoyennes);
+
   document.getElementById('btn-cloturer').addEventListener('click', async () => {
     const resteCycle = C.round2(budgetCycleEnveloppe - totalDepense);
     const r = C.affectationFinDeCycle({ resteCycle, coussinActuel: config.coussinActuel, coussinCible: config.coussinCible });

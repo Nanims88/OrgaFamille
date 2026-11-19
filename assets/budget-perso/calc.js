@@ -194,6 +194,28 @@ export function soldeTheorique({ soldeInitial, transactions }) {
   return round2(transactions.reduce((s, t) => s + t.montant, soldeInitial));
 }
 
+// Moyenne mensuelle reelle des depenses par categorie, sur les N derniers mois COMPLETS avant
+// dateRef (le mois en cours est exclu : encore incomplet, il fausserait la moyenne a la baisse).
+// Un mois sans depense dans une categorie compte pour 0 (pas ignore) : une categorie occasionnelle
+// doit bien ressortir avec une moyenne faible, pas gonflee comme si elle revenait tous les mois.
+export function moyennesMensuellesParCategorie(transactions, nbMois, dateRef = new Date()) {
+  const moisInclus = new Set();
+  for (let i = 1; i <= nbMois; i++) {
+    const d = new Date(dateRef.getFullYear(), dateRef.getMonth() - i, 1);
+    moisInclus.add(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+  }
+  const sommesParCategorie = {};
+  for (const t of transactions) {
+    if (t.montant >= 0 || !moisInclus.has(t.date.slice(0, 7))) continue;
+    sommesParCategorie[t.categorie] = round2((sommesParCategorie[t.categorie] || 0) + Math.abs(t.montant));
+  }
+  const moyennes = {};
+  for (const cat of Object.keys(sommesParCategorie)) {
+    moyennes[cat] = round2(sommesParCategorie[cat] / nbMois);
+  }
+  return moyennes;
+}
+
 // Répartition d'un revenu exceptionnel (bonus / rachat AV) selon les règles paramétrables.
 export function affectationBonus({ bonusTotal, noel = 0, izicarteRestant = 0, partPretAuto = 0.6, partLivret = 0.4 }) {
   let reste = round2(bonusTotal);
