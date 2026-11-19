@@ -529,6 +529,7 @@ async function renderSaisie(zone) {
     <h2 class="section-titre">Saisies</h2>
     <details class="carte" id="saisie-historique-volet">
       <summary style="cursor:pointer;font-weight:700;" id="saisie-historique-resume">Voir toutes les saisies</summary>
+      <input id="saisie-recherche" type="text" placeholder="Rechercher (categorie, libelle...)" style="margin-top:10px;width:100%;padding:8px;border-radius:8px;border:2px solid var(--border)">
       <div id="saisie-historique" style="margin-top:10px;"></div>
     </details>
   `;
@@ -617,27 +618,43 @@ async function supprimerSaisie(zone, id) {
 }
 
 async function rafraichirHistoriqueSaisie(zone) {
+  const config = await DB.getConfig();
+  const libelleCategorie = Object.fromEntries(config.categories.map(c => [c.id, c.libelle]));
   const toutes = (await DB.getAll('transactions')).sort((a, b) => b.date.localeCompare(a.date));
   zone.querySelector('#saisie-historique-resume').textContent = `Voir toutes les saisies (${toutes.length})`;
   const historique = zone.querySelector('#saisie-historique');
-  historique.innerHTML = toutes.length ? toutes.map(t => `
-    <div class="item-ligne" data-id="${t.id}">
-      <span>${dateFR(t.date)} — ${t.libelle} <span class="pastille-categorie">${t.categorie}</span></span>
-      <span class="montant">${eur(t.montant)}
-        <a href="#" class="saisie-modifier" data-id="${t.id}" title="Modifier" style="margin-left:8px">✏️</a>
-        <a href="#" class="saisie-supprimer" data-id="${t.id}" title="Supprimer" style="margin-left:4px">🗑️</a>
-      </span>
-    </div>`).join('') : '<p class="vide" style="padding:12px">Aucune saisie.</p>';
+  const champRecherche = zone.querySelector('#saisie-recherche');
 
-  historique.querySelectorAll('.saisie-modifier').forEach(a => a.addEventListener('click', (e) => {
-    e.preventDefault();
-    const t = toutes.find(x => x.id === a.dataset.id);
-    if (t && zone._chargerPourEdition) zone._chargerPourEdition(t);
-  }));
-  historique.querySelectorAll('.saisie-supprimer').forEach(a => a.addEventListener('click', (e) => {
-    e.preventDefault();
-    supprimerSaisie(zone, a.dataset.id);
-  }));
+  const dessinerListe = (filtre) => {
+    const f = (filtre || '').trim().toLowerCase();
+    const filtrees = !f ? toutes : toutes.filter(t =>
+      (t.libelle || '').toLowerCase().includes(f) ||
+      (libelleCategorie[t.categorie] || t.categorie || '').toLowerCase().includes(f)
+    );
+    historique.innerHTML = filtrees.length ? filtrees.map(t => `
+      <div class="item-ligne" data-id="${t.id}">
+        <span>${dateFR(t.date)} — ${t.libelle} <span class="pastille-categorie">${libelleCategorie[t.categorie] || t.categorie}</span></span>
+        <span class="montant">${eur(t.montant)}
+          <a href="#" class="saisie-modifier" data-id="${t.id}" title="Modifier" style="margin-left:8px">✏️</a>
+          <a href="#" class="saisie-supprimer" data-id="${t.id}" title="Supprimer" style="margin-left:4px">🗑️</a>
+        </span>
+      </div>`).join('') : `<p class="vide" style="padding:12px">${f ? 'Aucune saisie ne correspond a la recherche.' : 'Aucune saisie.'}</p>`;
+
+    historique.querySelectorAll('.saisie-modifier').forEach(a => a.addEventListener('click', (e) => {
+      e.preventDefault();
+      const t = toutes.find(x => x.id === a.dataset.id);
+      if (t && zone._chargerPourEdition) zone._chargerPourEdition(t);
+    }));
+    historique.querySelectorAll('.saisie-supprimer').forEach(a => a.addEventListener('click', (e) => {
+      e.preventDefault();
+      supprimerSaisie(zone, a.dataset.id);
+    }));
+  };
+
+  dessinerListe(champRecherche.value);
+  // oninput (pas addEventListener) : rafraichirHistoriqueSaisie est rappelee a chaque
+  // ajout/modif/suppression sans reposer le HTML du champ, sinon les gestionnaires s'empileraient.
+  champRecherche.oninput = () => dessinerListe(champRecherche.value);
 }
 
 async function renderSemaine(zone) {
