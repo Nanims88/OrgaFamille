@@ -108,6 +108,60 @@ function clesExclusion(exceptions, dateUnique) {
   return new Set(exceptions.map(e => dateUnique ? e.tache_id : `${e.tache_id}|${e.date}`));
 }
 
+// ---------- Notifications push (agenda) ----------
+// Cle publique VAPID (pas un secret : elle identifie juste notre serveur d'envoi aupres du
+// navigateur). La cle privee correspondante ne vit que cote serveur (Edge Function Supabase).
+const VAPID_CLE_PUBLIQUE = 'BKeTGlXPex8I26lHSUABbhKyFbxA15xP7iVNKoMisv9ON2moT6t1ZivOwKagQr-Z1ljqSlFzucaDrdO7zcHHhX8';
+
+function urlBase64VersUint8Array(base64) {
+  const padding = '='.repeat((4 - (base64.length % 4)) % 4);
+  const chaine = (base64 + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const brut = atob(chaine);
+  return Uint8Array.from([...brut].map(c => c.charCodeAt(0)));
+}
+
+async function notificationsActivees() {
+  if (!('serviceWorker' in navigator)) return false;
+  const registration = await navigator.serviceWorker.getRegistration();
+  if (!registration) return false;
+  const abonnement = await registration.pushManager.getSubscription();
+  return !!abonnement;
+}
+
+// Demande la permission, cree l'abonnement push et l'enregistre en base. Retourne true/false
+// selon le succes ; affiche elle-meme un message d'erreur le cas echeant (pas de retour silencieux).
+async function activerNotifications() {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+    alert("Les notifications ne sont pas prises en charge sur cet appareil/navigateur.");
+    return false;
+  }
+  const permission = await Notification.requestPermission();
+  if (permission !== 'granted') {
+    alert('Permission refusee : les notifications ne pourront pas s\'afficher.');
+    return false;
+  }
+  const registration = await navigator.serviceWorker.ready;
+  let abonnement = await registration.pushManager.getSubscription();
+  if (!abonnement) {
+    abonnement = await registration.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64VersUint8Array(VAPID_CLE_PUBLIQUE)
+    });
+  }
+  const json = abonnement.toJSON();
+  const { error } = await sb.from('push_subscriptions').upsert({
+    endpoint: json.endpoint,
+    p256dh: json.keys.p256dh,
+    auth: json.keys.auth
+  }, { onConflict: 'endpoint' });
+  if (error) {
+    console.error(error);
+    alert("Erreur lors de l'enregistrement de l'abonnement.");
+    return false;
+  }
+  return true;
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   marquerNavActive();
   demarrerPortail();
